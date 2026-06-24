@@ -560,6 +560,9 @@ elif page_selection == "➕ Build New Quotation Module":
   # ==========================================
     # 🖨️ FIXED INDENTATION: PDF ENGINE ASSET
     # ==========================================
+    # ==========================================
+    # 🖨️ ANTI-TRUNCATION: DYNAMIC CSS PRINT ENGINE
+    # ==========================================
     if action_c2.button("🖨️ Compile Official Corporate PDF Engine Asset"):
         html_table_rows = ""
         for item in st.session_state.working_items:
@@ -576,7 +579,7 @@ elif page_selection == "➕ Build New Quotation Module":
             html_table_rows += f"""
             <tr {row_class}>
                 <td style="text-align: center;">{item.get('No') or ''}</td>
-                <td>{item.get('Part Number/Model') or ''}</td>
+                <td style="white-space: nowrap;">{item.get('Part Number/Model') or ''}</td>
                 <td>{indent_prefix}{item.get('Description') or ''}</td>
                 <td style="text-align: center;">{int(qty)}</td>
                 <td class="num-cell">{currency_symbol}{converted_unit_price:,.2f}</td>
@@ -599,8 +602,8 @@ elif page_selection == "➕ Build New Quotation Module":
         <head>
             <meta charset="utf-8">
             <style>
-                @page {{ size: A4; margin: 15mm 12mm 15mm 12mm; }}
-                body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: #1f2937; font-size: 9pt; line-height: 1.5; }}
+                @page {{ size: A4; margin: 15mm 15mm 15mm 12mm; }}
+                body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: #1f2937; font-size: 9pt; line-height: 1.5; padding-right: 5px; }}
                 
                 .brand-header {{ width: 100%; margin-bottom: 15px; }}
                 .brand-header td {{ vertical-align: top; }}
@@ -613,23 +616,21 @@ elif page_selection == "➕ Build New Quotation Module":
                 .meta-table {{ width: 100%; margin-bottom: 25px; border-collapse: collapse; }}
                 .meta-table td {{ border: 1px solid #e5e7eb; padding: 10px; vertical-align: top; width: 50%; background-color: #fafafa; }}
                 
-                .items-table {{ width: 100%; border-collapse: collapse; margin-top: 15px; table-layout: fixed; page-break-inside: auto; }}
+                /* Auto-sizing layout to protect multi-character strings from truncation */
+                .items-table {{ width: 100%; border-collapse: collapse; margin-top: 15px; page-break-inside: auto; }}
                 .items-table tr {{ page-break-inside: avoid; page-break-after: auto; }}
-                .items-table th {{ background-color: #1f2937; color: white; padding: 10px 4px; font-size: 9pt; text-transform: uppercase; border: 1px solid #1f2937; font-weight: bold; }}
-                .items-table td {{ border: 1px solid #e5e7eb; padding: 8px 4px; vertical-align: top; font-size: 8.5pt; word-wrap: break-word; overflow: visible; }}
+                .items-table th {{ background-color: #1f2937; color: white; padding: 10px 6px; font-size: 9pt; text-transform: uppercase; border: 1px solid #1f2937; font-weight: bold; }}
+                .items-table td {{ border: 1px solid #e5e7eb; padding: 8px 6px; vertical-align: top; font-size: 8.5pt; }}
                 
+                /* Percentages removed to allow headers like "TOTAL PRICE" to dynamically expand layout */
                 .col-no {{ width: 5%; }}
-                .col-part {{ width: 18%; }}
-                .col-desc {{ width: 32%; }}
-                .col-qty {{ width: 5%; }}
-                .col-uprice {{ width: 18%; }}
-                .col-tprice {{ width: 22%; }}
+                .col-qty {{ width: 6%; }}
                 
                 .num-cell {{ text-align: right; white-space: nowrap; }}
                 .sub-row td {{ background-color: #f9fafb; color: #4b5563; font-style: italic; }}
                 
                 .totals-container {{ width: 100%; margin-top: 25px; display: block; }}
-                .totals-table {{ width: 50%; margin-left: auto; border-collapse: collapse; }}
+                .totals-table {{ width: 55%; margin-left: auto; border-collapse: collapse; }}
                 .totals-table td {{ padding: 8px; border-bottom: 1px solid #e5e7eb; font-size: 9pt; }}
                 .grand-total-row {{ background-color: #00a8e8; color: white; font-weight: bold; }}
                 .grand-total-row td {{ border: none; }}
@@ -675,11 +676,11 @@ elif page_selection == "➕ Build New Quotation Module":
                 <thead>
                     <tr>
                         <th class="col-no">No</th>
-                        <th class="col-part">Part Number</th>
-                        <th class="col-desc">Description</th>
+                        <th>Part Number</th>
+                        <th>Description</th>
                         <th class="col-qty">Qty</th>
-                        <th class="col-uprice">Unit Price</th>
-                        <th class="col-tprice">Total Price</th>
+                        <th style="text-align: right;">Unit Price</th>
+                        <th style="text-align: right;">Total Price</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -691,19 +692,19 @@ elif page_selection == "➕ Build New Quotation Module":
                 <table class="totals-table">
                     <tr>
                         <td>Gross Framework Subtotal:</td>
-                        <td style="text-align: right; font-weight: 500;">{currency_symbol}{global_subtotal_base:,.2f}</td>
+                        <td style="text-align: right; font-weight: 500; white-space: nowrap;">{currency_symbol}{global_subtotal_base:,.2f}</td>
                     </tr>
                     <tr>
                         <td>Global Aggregate Discount Adjustment:</td>
-                        <td style="text-align: right; color: #dc2626;">-{currency_symbol}{global_discount_base:,.2f}</td>
+                        <td style="text-align: right; color: #dc2626; white-space: nowrap;">-{currency_symbol}{global_discount_base:,.2f}</td>
                     </tr>
                     <tr>
                         <td>Commercial Tax Pool Value ({global_tax_pct}%):</td>
-                        <td style="text-align: right;">{currency_symbol}{calculated_tax:,.2f}</td>
+                        <td style="text-align: right; white-space: nowrap;">{currency_symbol}{calculated_tax:,.2f}</td>
                     </tr>
                     <tr class="grand-total-row">
                         <td>Grand Total ({currency_selection}):</td>
-                        <td style="text-align: right; font-size: 10.5pt;">{currency_symbol}{calculated_grand_total:,.2f}</td>
+                        <td style="text-align: right; font-size: 10.5pt; white-space: nowrap;">{currency_symbol}{calculated_grand_total:,.2f}</td>
                     </tr>
                 </table>
             </div>
@@ -731,4 +732,5 @@ elif page_selection == "➕ Build New Quotation Module":
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'SUBMITTED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (quotation_auto_gen, current_user["id"], client_company, project_title, attn_person, attn_email, attn_phone, str(issue_date), validity_bound, lead_time_frame, payment_terms_desc, terms_and_cond, global_subtotal_base, global_discount_base, calculated_tax, calculated_grand_total, currency_selection, exchange_rate, json.dumps(st.session_state.working_items)))
             conn.commit()
+        st.success("PDF payload built with complete formatting vectors.")
         st.success("PDF payload built with complete formatting vectors.")
