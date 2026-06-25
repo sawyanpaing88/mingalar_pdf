@@ -1236,7 +1236,7 @@ elif page_selection == "➕ Build New Quotation Module":
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th style="width: 6%; text-align: center;"<strong>No</th>
+                        <th style="width: 6%; text-align: center;">No</th>
                         <th style="width: 22%;">Part Number</th>
                         <th style="width: 42%;">Item Description Specifications</th>
                         <th style="width: 5%; text-align: center;">Qty</th>
