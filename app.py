@@ -878,7 +878,7 @@ elif page_selection == "➕ Build New Quotation Module":
         if global_discount_input > 0:
             st.sidebar.markdown(f"**Discount:** -{currency_symbol}{global_discount_input:,.2f}")
         if enable_commercial_tax:
-            st.sidebar.markdown(f"**Commercial Tax (CT):** +{currency_symbol}{comm_tax_amount:,.2f}")
+            st.sidebar.markdown(f"**Commercial Tax ({commercial_tax_pct}%):** +{currency_symbol}{comm_tax_amount:,.2f}")
         if enable_wht:
             st.sidebar.markdown(f"**Withholding Tax (WHT):** +{currency_symbol}{wht_tax_amount:,.2f}")
         st.sidebar.markdown(f"### **Grand Total:** {currency_symbol}{calculated_grand_total:,.2f}")
@@ -1059,7 +1059,7 @@ elif page_selection == "➕ Build New Quotation Module":
             if enable_commercial_tax:
                 tax_row_markup += f'''
                 <tr>
-                    <td style="color: #475569; padding: 4px 0;">Commercial Tax ({commercial_tax_pct}%):</td>
+                    <td style="color: #475569; padding: 4px 0;">Commercial Tax (CT):</td>
                     <td style="text-align: right; font-weight: 600; color: #475569; white-space: nowrap; padding: 4px 0;">+{currency_symbol}{comm_tax_amount:,.2f}</td>
                 </tr>
                 '''
