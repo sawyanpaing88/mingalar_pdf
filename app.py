@@ -510,6 +510,7 @@ elif page_selection == "➕ Build New Quotation Module":
     exchange_rate = st.sidebar.number_input("Commercial Exchange Rate Value (1 USD to MMK)", min_value=1.0, value=3250.0, step=10.0)
     
     currency_symbol = "USD " if currency_selection == "USD" else "MMK "
+    # Note: conversion_multiplier is intentionally ONLY applied during PDF formatting and calculated layout structures.
     conversion_multiplier = exchange_rate if currency_selection == "MMK" else 1.0
     
     st.sidebar.markdown("### 📋 System Template")
@@ -591,6 +592,7 @@ elif page_selection == "➕ Build New Quotation Module":
             st.success(f"Applied a uniform {global_margin_input}% margin setting across all sub-portfolio entries.")
             st.rerun()
 
+    # --- LIVE CALCULATION PIPELINE (Isolated From Live Conversion Alterations) ---
     for item in st.session_state.working_items:
         if not item.get("is_sub", False):
             item["Part Number"] = ""
@@ -600,10 +602,12 @@ elif page_selection == "➕ Build New Quotation Module":
             item["Total Price"] = None
         else:
             qty = float(item.get("Qty") or 0)
-            u_p = float(item.get("Unit Price") or 0.0)
+            u_p = float(item.get("Unit Price") or 0.0) # Entered Base Unit Price stays preserved here
             m_pct = float(item.get("Margin") or 0.0) / 100.0
             final_unit_price = u_p / (1 - m_pct) if m_pct < 1.0 else u_p
             item["Calculated Unit Price Base"] = round(final_unit_price, 2)
+            
+            # Currency conversions are projected ONLY into the row total calculation in real time
             item["Total Price"] = round((final_unit_price * qty) * conversion_multiplier, 2)
 
     blueprint_columns = ["No", "Part Number", "Description", "Qty", "Unit Price", "Margin", "Total Price"]
@@ -711,25 +715,44 @@ elif page_selection == "➕ Build New Quotation Module":
         ms_desc = st.text_area("Managed Service Description", "ARK Premium 24/7 Monitoring")
         ms_price_usd = st.number_input("Managed Service (USD)", min_value=0.0, value=0.0)
 
+    # --- SIDEBAR TAX CONFIGURATION SELECTION MAPPING ---
     st.sidebar.markdown("### 🏛️ Tax Strategies")
-    tax_type_selection = st.sidebar.selectbox("Tax Strategy Strategy", ["Commercial Tax", "Withholding Tax (WHT)"])
-    global_tax_pct = st.sidebar.number_input("Tax Factor (%)", min_value=0.0, value=5.0 if tax_type_selection == "Commercial Tax" else 2.0)
+    enable_commercial_tax = st.sidebar.checkbox("Apply Commercial Tax", value=True)
+    commercial_tax_pct = 5.0
+    if enable_commercial_tax:
+        commercial_tax_pct = st.sidebar.number_input("Commercial Tax Factor (%)", min_value=0.0, value=5.0, key="comm_tax_val")
+        
+    enable_wht = st.sidebar.checkbox("Apply Withholding Tax (WHT)", value=False)
+    wht_pct = 2.0
+    if enable_wht:
+        wht_pct = st.sidebar.number_input("Withholding Tax (WHT) Factor (%)", min_value=0.0, value=2.0, key="wht_tax_val")
 
+    # Calculate subtotal using totals already containing conversion values
     item_subtotal_rendered = sum([float(item.get("Total Price") or 0.0) for item in st.session_state.working_items if item.get("Total Price") is not None])
     global_subtotal_calculated = item_subtotal_rendered + ((ps_price_usd + ms_price_usd) * conversion_multiplier)
     
     global_discount_input = st.sidebar.number_input(f"Discount ({currency_selection})", min_value=0.0, value=0.0)
     subtotal_after_disc = max(0.0, global_subtotal_calculated - global_discount_input)
     
-    if tax_type_selection == "Commercial Tax":
-        calculated_tax = subtotal_after_disc * (global_tax_pct / 100.0)
-        calculated_grand_total = subtotal_after_disc + calculated_tax
-    else:
-        calculated_tax = subtotal_after_disc * (global_tax_pct / 100.0)
-        calculated_grand_total = subtotal_after_disc - calculated_tax
+    comm_tax_amount = (subtotal_after_disc * (commercial_tax_pct / 100.0)) if enable_commercial_tax else 0.0
+    wht_tax_amount = (subtotal_after_disc * (wht_pct / 100.0)) if enable_wht else 0.0
+    
+    # Grand total formula handles both adjustments concurrently
+    calculated_grand_total = subtotal_after_disc + comm_tax_amount - wht_tax_amount
+    
+    # Telemetry data mapping strings for database archival 
+    active_strategies = []
+    if enable_commercial_tax: active_strategies.append(f"Commercial Tax ({commercial_tax_pct}%)")
+    if enable_wht: active_strategies.append(f"WHT ({wht_pct}%)")
+    tax_type_selection = " + ".join(active_strategies) if active_strategies else "None"
+    global_tax_pct = commercial_tax_pct if enable_commercial_tax else wht_pct
+    calculated_tax = comm_tax_amount + wht_tax_amount
     
     st.sidebar.markdown(f"**Gross Subtotal:** {currency_symbol}{global_subtotal_calculated:,.2f}")
-    st.sidebar.markdown(f"**{tax_type_selection} ({global_tax_pct}%):** {currency_symbol}{calculated_tax:,.2f}")
+    if enable_commercial_tax:
+        st.sidebar.markdown(f"**Commercial Tax ({commercial_tax_pct}%):** +{currency_symbol}{comm_tax_amount:,.2f}")
+    if enable_wht:
+        st.sidebar.markdown(f"**Withholding Tax (WHT) ({wht_pct}%):** -{currency_symbol}{wht_tax_amount:,.2f}")
     st.sidebar.markdown(f"### **Grand Total:** {currency_symbol}{calculated_grand_total:,.2f}")
 
     action_c1, action_c2 = st.columns(2)
@@ -750,6 +773,7 @@ elif page_selection == "➕ Build New Quotation Module":
 
         max_main_no = max([int(float(item.get("parent_idx", 0))) for item in st.session_state.working_items if str(item.get("parent_idx", "")).isdigit()] + [1])
 
+        # --- HTML ROW POPULATION BUILDER ---
         table_rows_html = ""
         for item in st.session_state.working_items:
             is_sub = item.get("is_sub", False)
@@ -764,6 +788,7 @@ elif page_selection == "➕ Build New Quotation Module":
                 </tr>
                 '''
             else:
+                # Execution calculation rendering rules map baseline values directly across conversion targets
                 raw_base_unit = float(item.get("Calculated Unit Price Base") or 0.0)
                 unit_p = raw_base_unit * conversion_multiplier
                 total_p = (raw_base_unit * float(item.get("Qty") or 0)) * conversion_multiplier
@@ -815,18 +840,28 @@ elif page_selection == "➕ Build New Quotation Module":
             </tr>
             '''
 
-        tax_row_markup = f'''
-        <tr>
-            <td style="color: #475569; padding: 4px 0;">{tax_type_selection} ({global_tax_pct}%):</td>
-            <td style="text-align: right; font-weight: 600; color: #475569; white-space: nowrap; padding: 4px 0;">{currency_symbol}{calculated_tax:,.2f}</td>
-        </tr>
-        '''
+        tax_row_markup = ""
+        if enable_commercial_tax:
+            tax_row_markup += f'''
+            <tr>
+                <td style="color: #475569; padding: 4px 0;">Commercial Tax ({commercial_tax_pct}%):</td>
+                <td style="text-align: right; font-weight: 600; color: #475569; white-space: nowrap; padding: 4px 0;">+{currency_symbol}{comm_tax_amount:,.2f}</td>
+            </tr>
+            '''
+        if enable_wht:
+            tax_row_markup += f'''
+            <tr>
+                <td style="color: #475569; padding: 4px 0;">Withholding Tax WHT ({wht_pct}%):</td>
+                <td style="text-align: right; font-weight: 600; color: #b91c1c; white-space: nowrap; padding: 4px 0;">-{currency_symbol}{wht_tax_amount:,.2f}</td>
+            </tr>
+            '''
 
+        # Account Manager Signature block generation rules
         sig_img_markup = ""
         if current_user["signature_b64"]:
             sig_img_markup = f'<img src="{current_user["signature_b64"]}" style="max-height: 55px; margin-top: 5px; margin-bottom: 2px; display: block;">'
         else:
-            sig_img_markup = '<div style="height: 45px; margin-top: 5px; color: #cbd5e1; font-style: italic; font-size: 8pt;">Signature Pending</div>'
+            sig_img_markup = '<div style="height: 45px; margin-top: 5px; color: #cbd5e1; font-style: italic; font-size: 8pt;">Signature Signature Pending</div>'
 
         html_document = f"""
         <!DOCTYPE html>
@@ -883,6 +918,7 @@ elif page_selection == "➕ Build New Quotation Module":
                 
                 .clear {{ clear: both; height: 5px; }}
                 
+                /* MILD DARK BLUE HEADER CONFIGURATION */
                 .data-table {{ width: 100%; max-width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; clear: both; table-layout: auto; }}
                 .data-table th {{ background-color: #1e293b; color: white; font-weight: 500; text-transform: uppercase; font-size: 8pt; padding: 8px; text-align: left; letter-spacing: 0.3px; }}
                 .data-table td {{ font-size: 8.5pt; border-bottom: 1px solid #f1f5f9; }}
