@@ -1217,13 +1217,18 @@ elif page_selection == "➕ Build New Quotation Module":
             {totals_box_html}
             <div class="clear"></div>
 
-            <div class="footer-terms">
-                <strong>Commercial Logistics Terms & Governance Conditions:</strong><br>
-                1. Delivery Lead-Time Windows: Equipment delivery windows are anticipated at approximately <strong>{lead_time_frame}</strong> start from PO issue date.<br>
-                2. Explicit Milestone Commitments: All relative monetary settlement routes must maintain strict compliance with: <strong>{payment_terms_desc}</strong>.<br>
-                3. Additional Execution Scope and Framework Matrix Parameters: 
-                {terms_and_cond.replace('\n', '<br>')}
-            </div>
+           <div class="footer-terms">
+            <strong>Commercial Logistics Terms & Governance Conditions:</strong><br>
+
+            1. Delivery Lead-Time Windows: Equipment delivery windows are anticipated at approximately 
+            <strong>{lead_time_frame}</strong> start from PO issue date.<br>
+
+            2. Explicit Milestone Commitments: All relative monetary settlement routes must maintain strict compliance with: 
+            <strong style="color:red;">{payment_terms_desc}</strong>.<br>
+
+            3. Additional Execution Scope and Framework Matrix Parameters: 
+            <span style="color:#003366;">{terms_and_cond.replace('\n', '<br>')}</span>
+        </div>
 
             <div class="signatory-container">
                 <div class="signatory-box">
