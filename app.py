@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -136,26 +135,26 @@ def parse_uploaded_document(df_raw):
             is_sub_row = False                  
         elif "." in row_no_raw:
             row_no = row_no_raw                 
-            is_sub_row = True                   
+            is_sub_row = True                    
         else:
             row_no = row_no_raw
             is_sub_row = False
             
         p_idx = row_no.split(".")[0]
             
-        qty_val = 1
-        if qty_col:
+        qty_val = 1 if is_sub_row else 0
+        if qty_col and is_sub_row:
             try: qty_val = int(float(str(row[qty_col]).replace(',', '')))
             except: pass
             
         price_val = 0.0
-        if price_col:
+        if price_col and is_sub_row:
             try: price_val = float(re.sub(r'[^\d\.]', '', str(row[price_col])))
             except: pass
             
-        part_no = "ARK-PART"
+        part_no = "ARK-PART" if is_sub_row else ""
         for col in df_raw.columns:
-            if col not in [desc_col, qty_col, price_col, "No"]:
+            if col not in [desc_col, qty_col, price_col, "No"] and is_sub_row:
                 val = str(row[col]).strip()
                 if val and len(val) < 15 and val != "nan":
                     part_no = val
@@ -169,7 +168,7 @@ def parse_uploaded_document(df_raw):
             "Description": desc_val,
             "Qty": qty_val,
             "Unit Price": price_val,
-            "Margin": 20.0,
+            "Margin": 20.0 if is_sub_row else 0.0,
             "Total Price": 0.0
         })
     return structured_items
@@ -205,9 +204,9 @@ def parse_pdf_document(uploaded_file):
                 
                 if len(desc_val) > 5:
                     structured_items.append({
-                        "No": str(idx),
-                        "is_sub": False,
-                        "parent_idx": str(idx),
+                        "No": f"1.{idx}",
+                        "is_sub": True,
+                        "parent_idx": "1",
                         "Part Number/Model": part_no,
                         "Description": desc_val,
                         "Qty": qty_val if qty_val > 0 else 1,
@@ -216,6 +215,11 @@ def parse_pdf_document(uploaded_file):
                         "Total Price": 0.0
                     })
                     idx += 1
+        if structured_items:
+            structured_items.insert(0, {
+                "No": "1", "is_sub": False, "parent_idx": "1", "Part Number/Model": "",
+                "Description": "Imported PDF Bill of Materials Block", "Qty": 0, "Unit Price": 0.0, "Margin": 0.0, "Total Price": 0.0
+            })
     except Exception as e:
         st.error(f"Failed handling PDF text context layout: {e}")
     return structured_items
@@ -250,7 +254,7 @@ if not st.session_state.user:
         reg_pwd = st.text_input("Create Security Password", type="password", key="reg_pw")
         reg_role = st.selectbox("Requested Core Functional Target Profile", ["Account Manager", "Account Director", "Top Management"])
         
-        if st.button("Initiate Sign Up Pipeline"):
+        if st.button("Identity Activation Request"):
             if not reg_email or not reg_pwd:
                 st.error("All fields are mandatory.")
             else:
@@ -299,8 +303,6 @@ page_selection = st.sidebar.radio("Navigation Directives", nav_options)
 # ==========================================
 if page_selection == "🏠 Dashboard Console":
     st.header(f"📊 Activity Metrics Control Dashboard - {current_user['role']}")
-    
-    # Safely pre-initialize fallback loop array to avoid NameError
     quotes = []
     
     with get_db() as conn:
@@ -331,18 +333,12 @@ if page_selection == "🏠 Dashboard Console":
         
         with g_col1:
             st.markdown("<p style='text-align: center; font-weight: bold;'>Total Quotation Count</p>", unsafe_allow_html=True)
-            chart_count_data = pd.DataFrame({
-                "Submitted (Pending)": [len(submitted_df)],
-                "Won (PO Received)": [len(won_df)]
-            })
+            chart_count_data = pd.DataFrame({"Submitted (Pending)": [len(submitted_df)], "Won (PO Received)": [len(won_df)]})
             st.bar_chart(chart_count_data, color=["#00a8e8", "#2ecc71"])
             
         with g_col2:
             st.markdown("<p style='text-align: center; font-weight: bold;'>Cumulative Pipeline Value ($)</p>", unsafe_allow_html=True)
-            chart_value_data = pd.DataFrame({
-                "Submitted (Pending)": [submitted_df['grand_total'].sum()],
-                "Won (PO Received)": [won_df['grand_total'].sum()]
-            })
+            chart_value_data = pd.DataFrame({"Submitted (Pending)": [submitted_df['grand_total'].sum()], "Won (PO Received)": [won_df['grand_total'].sum()]})
             st.bar_chart(chart_value_data, color=["#00a8e8", "#2ecc71"])
 
         st.subheader("🗃️ Active Ledger Workspace")
@@ -396,7 +392,6 @@ if page_selection == "🏠 Dashboard Console":
 # ==========================================
 elif page_selection == "👥 User Role Management" and current_user["role"] == "Admin":
     st.header("👥 User Directory & Authorization Matrix")
-    
     with get_db() as conn:
         all_users = conn.execute("SELECT id, email, role, is_verified FROM users WHERE role != 'Admin'").fetchall()
         
@@ -440,10 +435,10 @@ elif page_selection == "➕ Build New Quotation Module":
     st.sidebar.markdown("### 📋 System Template")
     sample_df = pd.DataFrame({
         "No": ["1", "1.1", "1.2", "2"],
-        "Part Number": ["C9300-48TX-E", "STACK-M-50CM", "PWR-C1-1100WAC", "CON-SNT-C930048T"],
-        "Description": ["Catalyst 9300 48-port Data Only Network Essentials", "Cisco Catalyst 9300 Stack Cable 50CM", "Cisco Catalyst Power Supply 1100W", "SNTC-8X5XNBD Catalyst 9300 48-port Data Only"],
-        "Qty": [1, 1, 1, 1],
-        "Unit Price": [4500.00, 250.00, 600.00, 850.00]
+        "Part Number": ["", "C9300-48TX-E", "STACK-M-50CM", ""],
+        "Description": ["Cisco Core Router Stack Frame", "Catalyst 9300 48-port Data Only", "Cisco Catalyst 9300 Stack Cable 50CM", "ARK Professional Services Division"],
+        "Qty": [0, 1, 1, 0],
+        "Unit Price": [0.0, 4500.00, 250.00, 0.0]
     })
     csv_payload = sample_df.to_csv(index=False).encode('utf-8')
     st.sidebar.download_button(
@@ -483,7 +478,7 @@ elif page_selection == "➕ Build New Quotation Module":
                 items_list = parse_uploaded_document(pd.read_csv(uploaded_doc, dtype={"No": str}))
             else:
                 items_list = parse_uploaded_document(pd.read_excel(uploaded_doc, dtype={"No": str}))
-            st.success(f"Mapped {len(items_list)} items.")
+            st.success(f"Mapped {len(items_list)} items lines dynamically.")
         except Exception as e:
             st.error(f"Ingestion failure: {e}")
 
@@ -492,9 +487,9 @@ elif page_selection == "➕ Build New Quotation Module":
             st.session_state.working_items = items_list
         else:
             st.session_state.working_items = [
-                {"No": "1", "is_sub": False, "parent_idx": "1", "Part Number/Model": "C9300-48TX-E", "Description": "Catalyst 9300 48-port Data Only Network Essentials", "Qty": 1, "Unit Price": 100.0, "Margin": 10.0, "Total Price": 0.0},
-                {"No": "1.1", "is_sub": True, "parent_idx": "1", "Part Number/Model": "STACK-M-50CM", "Description": "Cisco Catalyst 9300 Stack Cable 50CM", "Qty": 1, "Unit Price": 50.0, "Margin": 10.0, "Total Price": 0.0},
-                {"No": "1.2", "is_sub": True, "parent_idx": "1", "Part Number/Model": "PWR-C1-1100WAC", "Description": "Cisco Catalyst Power Supply 1100W", "Qty": 1, "Unit Price": 50.0, "Margin": 10.0, "Total Price": 0.0}
+                {"No": "1", "is_sub": False, "parent_idx": "1", "Part Number/Model": "", "Description": "Cisco Routing Core Platform Matrix", "Qty": 0, "Unit Price": 0.0, "Margin": 0.0, "Total Price": 0.0},
+                {"No": "1.1", "is_sub": True, "parent_idx": "1", "Part Number/Model": "C9300-48TX-E", "Description": "Catalyst 9300 48-port Data Only Network Essentials", "Qty": 1, "Unit Price": 4500.0, "Margin": 10.0, "Total Price": 0.0},
+                {"No": "1.2", "is_sub": True, "parent_idx": "1", "Part Number/Model": "STACK-M-50CM", "Description": "Cisco Catalyst 9300 Stack Cable 50CM", "Qty": 1, "Unit Price": 250.0, "Margin": 10.0, "Total Price": 0.0}
             ]
 
     conversion_multiplier = exchange_rate if currency_selection == "MMK" else 1.0
@@ -507,27 +502,31 @@ elif page_selection == "➕ Build New Quotation Module":
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("⚡ Apply Margin to All Rows"):
             for item in st.session_state.working_items:
-                item["Margin"] = float(global_margin_input)
-            st.success(f"Applied a uniform {global_margin_input}% margin setting across all portfolio entries.")
+                if item.get("is_sub", False):
+                    item["Margin"] = float(global_margin_input)
+            st.success(f"Applied a uniform {global_margin_input}% margin setting across all sub-portfolio entries.")
             st.rerun()
 
-    # Calculation execution loop
+    # --- UPDATED CALCULATION ENGINE ---
     for item in st.session_state.working_items:
-        qty = float(item.get("Qty") or 1)
-        u_p = float(item.get("Unit Price") or 0.0)
-        m_pct = float(item.get("Margin") or 0.0) / 100.0
-        final_unit_price = u_p / (1 - m_pct) if m_pct < 1.0 else u_p
-        item["Total Price"] = round((final_unit_price * qty) * conversion_multiplier, 2)
+        if not item.get("is_sub", False):
+            item["Qty"] = 0
+            item["Unit Price"] = 0.0
+            item["Margin"] = 0.0
+            item["Total Price"] = 0.0
+        else:
+            qty = float(item.get("Qty") or 1)
+            u_p = float(item.get("Unit Price") or 0.0)
+            m_pct = float(item.get("Margin") or 0.0) / 100.0
+            final_unit_price = u_p / (1 - m_pct) if m_pct < 1.0 else u_p
+            item["Total Price"] = round((final_unit_price * qty) * conversion_multiplier, 2)
 
     df_display = pd.DataFrame(st.session_state.working_items)
-    visible_cols = ["No", "Part Number/Model", "Description", "Qty", "Unit Price", "Margin", "Total Price"]
-    for c in visible_cols:
-        if c not in df_display.columns:
-            df_display[c] = 0.0 if c in ["Qty", "Unit Price", "Margin", "Total Price"] else ""
+    st.info("💡 **ARK Architecture Rule:** Main rows (e.g., 1, 2) are pure text dividers. Add system units, metrics, and pricing components within Sub-Rows (e.g., 1.1, 1.2).")
 
     # Live Data Editor Workspace Rendering
     edited_df = st.data_editor(
-        df_display[visible_cols],
+        df_display[["No", "Part Number/Model", "Description", "Qty", "Unit Price", "Margin", "Total Price"]],
         num_rows="dynamic",
         width="stretch",
         key="quotation_data_grid",
@@ -535,43 +534,34 @@ elif page_selection == "➕ Build New Quotation Module":
             "No": st.column_config.TextColumn("No", width="small"),
             "Part Number/Model": st.column_config.TextColumn("Part Number/Model"),
             "Description": st.column_config.TextColumn("Item Description Specifications", width="large"),
-            "Qty": st.column_config.NumberColumn("Qty", min_value=1),
+            "Qty": st.column_config.NumberColumn("Qty", min_value=0),
             "Unit Price": st.column_config.NumberColumn(f"Unit Price ({currency_selection})", format=f"{currency_symbol}%.2f"),
             "Margin": st.column_config.NumberColumn("Margin (%)"),
             "Total Price": st.column_config.NumberColumn(f"Total Price ({currency_selection})", format=f"{currency_symbol}%.2f", disabled=True)
         }
     )
 
-    if not edited_df.equals(df_display[visible_cols]):
+    if not edited_df.equals(df_display[["No", "Part Number/Model", "Description", "Qty", "Unit Price", "Margin", "Total Price"]]):
         updated_records = []
-        
-        # --- ROBUST OVERRIDE HIERARCHY LOGIC ENGINE ---
         for idx, row in edited_df.iterrows():
-            orig_meta = st.session_state.working_items[idx] if idx < len(st.session_state.working_items) else {"is_sub": False, "parent_idx": "1", "Description": "Custom item"}
+            orig_meta = st.session_state.working_items[idx] if idx < len(st.session_state.working_items) else {"is_sub": False, "parent_idx": "1"}
             row_no = str(row["No"] or "")
             is_sub_row = "." in row_no
             p_idx = row_no.split(".")[0] if is_sub_row else row_no
             
-            try:
-                ui_margin = float(row.get("Margin") or 0.0)
-            except ValueError:
-                ui_margin = float(global_margin_input)
+            try: ui_margin = float(row.get("Margin") or 0.0)
+            except: ui_margin = float(global_margin_input) if is_sub_row else 0.0
                 
-            try:
-                old_margin = float(orig_meta.get("Margin") or 0.0)
-            except:
-                old_margin = float(global_margin_input)
+            try: old_margin = float(orig_meta.get("Margin") or 0.0)
+            except: old_margin = 0.0
 
             target_margin = ui_margin
-            
             if is_sub_row:
                 parent_row_matches = [r for _, r in edited_df.iterrows() if str(r.get("No")) == p_idx]
                 if parent_row_matches:
                     p_row = parent_row_matches[0]
-                    try:
-                        p_ui_margin = float(p_row.get("Margin") or 0.0)
-                    except:
-                        p_ui_margin = float(global_margin_input)
+                    try: p_ui_margin = float(p_row.get("Margin") or 0.0)
+                    except: p_ui_margin = 0.0
                         
                     p_orig_matches = [i for i in st.session_state.working_items if str(i.get("No")) == p_idx]
                     p_old_margin = float(p_orig_matches[0].get("Margin", 0.0)) if p_orig_matches else 0.0
@@ -583,11 +573,11 @@ elif page_selection == "➕ Build New Quotation Module":
                 "No": row_no, 
                 "is_sub": is_sub_row, 
                 "parent_idx": p_idx,
-                "Part Number/Model": row["Part Number/Model"] or "",
-                "Description": row["Description"] or "Custom item",
-                "Qty": int(row.get("Qty") or 1),
-                "Unit Price": float(row.get("Unit Price") or 0.0),
-                "Margin": float(target_margin), 
+                "Part Number/Model": "" if not is_sub_row else (row["Part Number/Model"] or ""),
+                "Description": row["Description"] or "Structural Node",
+                "Qty": 0 if not is_sub_row else int(row.get("Qty") or 0),
+                "Unit Price": 0.0 if not is_sub_row else float(row.get("Unit Price") or 0.0),
+                "Margin": 0.0 if not is_sub_row else float(target_margin), 
                 "Total Price": 0.0
             })
         st.session_state.working_items = updated_records
@@ -595,7 +585,7 @@ elif page_selection == "➕ Build New Quotation Module":
 
     btn_c1, btn_c2 = st.columns(2)
     with btn_c1:
-        if st.button("➕ Add Main Row"):
+        if st.button("➕ Add Main Row Divider"):
             main_rows = []
             for item in st.session_state.working_items:
                 if not item.get("is_sub", False):
@@ -604,20 +594,20 @@ elif page_selection == "➕ Build New Quotation Module":
             next_no = str(max(main_rows) + 1 if main_rows else 1)
             st.session_state.working_items.append({
                 "No": next_no, "is_sub": False, "parent_idx": next_no, 
-                "Part Number/Model": "NEW-ITEM", "Description": "Main Asset Block Description Specs", 
-                "Qty": 1, "Unit Price": 0.0, "Margin": float(global_margin_input), "Total Price": 0.0
+                "Part Number/Model": "", "Description": "NEW STRUCTURAL BLOCK HEADER", 
+                "Qty": 0, "Unit Price": 0.0, "Margin": 0.0, "Total Price": 0.0
             })
             st.rerun()
     with btn_c2:
-        if st.button("🌿 Add Sub-Row"):
+        if st.button("🌿 Add Sub-Row Element"):
             if st.session_state.working_items:
                 last_item = st.session_state.working_items[-1]
                 p_idx = last_item.get("parent_idx", "1")
                 siblings = [item for item in st.session_state.working_items if item.get("is_sub", False) and item.get("parent_idx") == p_idx]
                 st.session_state.working_items.append({
                     "No": f"{p_idx}.{len(siblings) + 1}", "is_sub": True, "parent_idx": p_idx, 
-                    "Part Number/Model": "SUB-ITEM", "Description": "Nested component asset specification detail", 
-                    "Qty": 1, "Unit Price": 0.0, "Margin": last_item.get("Margin", 0.0), "Total Price": 0.0
+                    "Part Number/Model": "NEW-ITEM", "Description": "Nested equipment asset line specifications", 
+                    "Qty": 1, "Unit Price": 0.0, "Margin": float(global_margin_input), "Total Price": 0.0
                 })
                 st.rerun()
 
@@ -631,7 +621,7 @@ elif page_selection == "➕ Build New Quotation Module":
         ms_price_usd = st.number_input("Managed Service (USD)", min_value=0.0, value=0.0)
 
     # --- MATH ENGINE PIPELINE ---
-    item_subtotal_base = sum([float(item.get("Total Price") or 0.0) for item in st.session_state.working_items if not item.get("is_sub", False)])
+    item_subtotal_base = sum([float(item.get("Total Price") or 0.0) for item in st.session_state.working_items])
     global_subtotal_base = item_subtotal_base + ((ps_price_usd + ms_price_usd) * conversion_multiplier)
     
     global_discount_base = st.sidebar.number_input(f"Discount ({currency_selection})", min_value=0.0, value=0.0)
@@ -652,182 +642,224 @@ elif page_selection == "➕ Build New Quotation Module":
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (quotation_auto_gen, current_user["id"], client_company, project_title, attn_person, attn_email, attn_phone, str(issue_date), validity_bound, lead_time_frame, payment_terms_desc, terms_and_cond, global_subtotal_base, global_discount_base, calculated_tax, calculated_grand_total, currency_selection, exchange_rate, json.dumps(st.session_state.working_items)))
             conn.commit()
-        st.success("Draft archived.")
+        st.success("Draft compiled and archived.")
 
     if action_c2.button("🖨️ Compile Official Corporate PDF Engine Asset"):
         if uploaded_logo_file is not None:
-            logo_bytes = uploaded_logo_file.read()
+            logo_bytes = uploaded_logo_file.getvalue()
             encoded_logo = base64.b64encode(logo_bytes).decode('utf-8')
             mime_type = uploaded_logo_file.type
-            logo_src_uri = f"data:{mime_type};base64,{encoded_logo}"
+            logo_src = f"data:{mime_type};base64,{encoded_logo}"
+            logo_html = f'<img src="{logo_src}" style="max-height: 75px; max-width: 220px; object-fit: contain;">'
         else:
-            logo_src_uri = "https://arktechsolutions.net/wp-content/themes/wp-ark/assets/img/logo-ark.png"
+            logo_html = '<h1 style="color:#00a8e8; margin:0; font-family:\'Helvetica Neue\',Arial;">ARK Premium Solutions</h1>'
 
-        html_table_rows = ""
+        # --- ADAPTIVE HIERARCHICAL ROW SPAN COMPILER ---
+        table_rows_html = ""
         for item in st.session_state.working_items:
-            row_class = "class='sub-row'" if item.get("is_sub", False) else ""
-            indent_prefix = "└── " if item.get("is_sub", False) else ""
-            qty = float(item.get("Qty") or 1)
-            u_p = float(item.get("Unit Price") or 0.0)
+            is_sub = item.get("is_sub", False)
             
-            try: m_pct = float(item.get("Margin") or 0.0) / 100.0
-            except: m_pct = 0.0
-                
-            final_unit_price = u_p / (1 - m_pct) if m_pct < 1.0 else u_p
-            converted_unit_price = final_unit_price * conversion_multiplier
-            converted_total_price = item.get("Total Price") or 0.0
-            
-            html_table_rows += f"""
-            <tr {row_class}>
-                <td style="text-align: center;">{item.get('No') or ''}</td>
-                <td style="white-space: nowrap;">{item.get('Part Number/Model') or ''}</td>
-                <td>{indent_prefix}{item.get('Description') or ''}</td>
-                <td style="text-align: center;">{int(qty)}</td>
-                <td class="num-cell">{currency_symbol}{converted_unit_price:,.2f}</td>
-                <td class="num-cell" style="font-weight: bold;">{currency_symbol}{converted_total_price:,.2f}</td>
-            </tr>
-            """
-            
+            if not is_sub:
+                # MAIN ROW: Colspan merges columns for an adaptive text header banner
+                table_rows_html += f'''
+                <tr style="background-color: #edf2f7; font-weight: bold; border-top: 2px solid #cbd5e0;">
+                    <td style="text-align: center;">{item.get("No", "")}</td>
+                    <td colspan="4" style="padding-left: 10px; color: #1a202c; font-size: 10pt; letter-spacing: 0.3px;">
+                        {item.get("Description", "Main Section")}
+                    </td>
+                </tr>
+                '''
+            else:
+                # SUB-ROW: Explicit financial data layout cells
+                table_rows_html += f'''
+                <tr style="background-color: #ffffff;">
+                    <td style="text-align: center; color: #718096; font-size: 8.5pt;">{item.get("No", "")}</td>
+                    <td style="color: #4a5568; font-family: monospace;">{item.get("Part Number/Model", "")}</td>
+                    <td style="padding-left: 20px; color: #2d3748; font-style: italic;">{item.get("Description", "")}</td>
+                    <td style="text-align: center;">{item.get("Qty", 1)}</td>
+                    <td style="text-align: right; font-weight: 600;">{currency_symbol}{item.get("Total Price", 0.0):,.2f}</td>
+                </tr>
+                '''
+
+        # --- SERVICE ATTACHMENT APPEND CODES ---
         if ps_price_usd > 0:
-            ps_conv = ps_price_usd * conversion_multiplier
-            html_table_rows += f"<tr><td style='text-align:center;'>-</td><td>PS-SERVICE</td><td>{ps_desc}</td><td style='text-align:center;'>1</td><td class='num-cell'>{currency_symbol}{ps_conv:,.2f}</td><td class='num-cell' style='font-weight:bold;'>{currency_symbol}{ps_conv:,.2f}</td></tr>"
+            ps_total = ps_price_usd * conversion_multiplier
+            table_rows_html += f'''
+            <tr style="background-color: #f7fafc; font-weight: 600;">
+                <td style="text-align: center;">-</td>
+                <td>SRV-PROF</td>
+                <td>{ps_desc}</td>
+                <td style="text-align: center;">1</td>
+                <td style="text-align: right;">{currency_symbol}{ps_total:,.2f}</td>
+            </tr>
+            '''
         if ms_price_usd > 0:
-            ms_conv = ms_price_usd * conversion_multiplier
-            html_table_rows += f"<tr><td style='text-align:center;'>-</td><td>MS-SERVICE</td><td>{ms_desc}</td><td style='text-align:center;'>1</td><td class='num-cell'>{currency_symbol}{ms_conv:,.2f}</td><td class='num-cell' style='font-weight:bold;'>{currency_symbol}{ms_conv:,.2f}</td></tr>"
+            ms_total = ms_price_usd * conversion_multiplier
+            table_rows_html += f'''
+            <tr style="background-color: #f7fafc; font-weight: 600;">
+                <td style="text-align: center;">-</td>
+                <td>SRV-MGMT</td>
+                <td>{ms_desc}</td>
+                <td style="text-align: center;">1</td>
+                <td style="text-align: right;">{currency_symbol}{ms_total:,.2f}</td>
+            </tr>
+            '''
 
-        exchange_rate_notice = f"<div style='font-size:8.5pt; color:#4b5563; margin-bottom:12px;'>🌐 <strong>Conversion Profile:</strong> 1 USD = {exchange_rate:,.2f} MMK</div>" if currency_selection == "MMK" else ""
-
-        full_printable_html = f"""
+        # HTML Layout Design String Template
+        html_document = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
             <style>
-                @page {{ size: A4; margin: 15mm 15mm 15mm 12mm; }}
-                body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: #1f2937; font-size: 9pt; line-height: 1.5; padding-right: 5px; }}
+                @page {{
+                    size: A4;
+                    margin: 20mm 15mm 25mm 15mm;
+                    @bottom-right {{
+                        content: "Page " counter(page) " of " counter(pages);
+                        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                        font-size: 8pt;
+                        color: #718096;
+                    }}
+                }}
+                body {{
+                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    color: #2d3748;
+                    font-size: 9.5pt;
+                    line-height: 1.6;
+                }}
+                .header-wrapper {{ width: 100%; margin-bottom: 35px; }}
+                .header-left {{ float: left; width: 50%; }}
+                .header-right {{ float: right; width: 50%; text-align: right; font-size: 8.5pt; color: #4a5568; }}
+                .clear {{ clear: both; }}
+                .divider {{ border-bottom: 3px solid #00a8e8; margin-top: 15px; margin-bottom: 25px; }}
+                .doc-title {{ font-size: 24pt; font-weight: bold; color: #1a202c; letter-spacing: -0.5px; margin: 0; }}
                 
-                .brand-header-center {{ width: 100%; margin-bottom: 25px; text-align: center; }}
-                .logo-container-center {{ margin-bottom: 12px; }}
-                .logo-img {{ max-height: 60px; display: inline-block; object-fit: contain; }}
-                .address-text-center {{ font-size: 8.5pt; color: #4b5563; line-height: 1.5; margin: 0 auto; max-width: 85%; text-align: center; }}
+                .meta-table {{ width: 100%; margin-bottom: 30px; table-layout: fixed; }}
+                .meta-table td {{ vertical-align: top; border: none; padding: 0; }}
+                .card-box {{ background-color: #f7fafc; border: 1px solid #e2e8f0; border-radius: 5px; padding: 12px; min-height: 95px; }}
+                .card-box-right {{ background-color: #edf2f7; border: 1px solid #cbd5e0; border-radius: 5px; padding: 12px; min-height: 95px; margin-left: 10px; }}
+                .card-title {{ font-size: 8pt; font-weight: bold; color: #718096; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; }}
                 
-                .title-bar {{ background-color: #00a8e8; color: white; padding: 10px; font-size: 14pt; font-weight: bold; text-transform: uppercase; margin-bottom: 20px; text-align: center; border-radius: 3px; }}
+                .data-table {{ width: 100%; border-collapse: collapse; margin-bottom: 25px; }}
+                .data-table th {{ background-color: #1a202c; color: white; font-weight: bold; text-transform: uppercase; font-size: 8.5pt; padding: 10px; text-align: left; }}
+                .data-table td {{ padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 9pt; }}
                 
-                .meta-table {{ width: 100%; margin-bottom: 25px; border-collapse: collapse; }}
-                .meta-table td {{ border: 1px solid #e5e7eb; padding: 10px; vertical-align: top; width: 50%; background-color: #fafafa; }}
+                .totals-box {{ float: right; width: 40%; margin-top: 10px; }}
+                .totals-table {{ width: 100%; border-collapse: collapse; }}
+                .totals-table td {{ padding: 6px 8px; font-size: 9.5pt; }}
+                .grand-total-tr {{ background-color: #00a8e8; color: white; font-weight: bold; font-size: 11pt; }}
+                .grand-total-tr td {{ padding: 10px 8px; }}
                 
-                .items-table {{ width: 100%; border-collapse: collapse; margin-top: 15px; page-break-inside: auto; }}
-                .items-table tr {{ page-break-inside: avoid; page-break-after: auto; }}
-                .items-table th {{ background-color: #1f2937; color: white; padding: 10px 6px; font-size: 9pt; text-transform: uppercase; border: 1px solid #1f2937; font-weight: bold; }}
-                .items-table td {{ border: 1px solid #e5e7eb; padding: 8px 6px; vertical-align: top; font-size: 8.5pt; }}
-                
-                .col-no {{ width: 5%; }}
-                .col-qty {{ width: 6%; }}
-                
-                .num-cell {{ text-align: right; white-space: nowrap; }}
-                .sub-row td {{ background-color: #f9fafb; color: #4b5563; font-style: italic; }}
-                
-                .totals-container {{ width: 100%; margin-top: 25px; display: block; }}
-                .totals-table {{ width: 55%; margin-left: auto; border-collapse: collapse; }}
-                .totals-table td {{ padding: 8px; border-bottom: 1px solid #e5e7eb; font-size: 9pt; }}
-                .grand-total-row {{ background-color: #00a8e8; color: white; font-weight: bold; }}
-                .grand-total-row td {{ border: none; }}
-                
-                .footer-notes {{ margin-top: 35px; font-size: 8.5pt; color: #4b5563; border-top: 1px solid #e5e7eb; padding-top: 15px; page-break-inside: avoid; }}
+                .footer-terms {{ margin-top: 60px; font-size: 8pt; color: #718096; border-top: 1px solid #e2e8f0; padding-top: 15px; page-break-inside: avoid; }}
             </style>
         </head>
         <body>
-            <div class="brand-header-center">
-                <div class="logo-container-center">
-                    <img src="{logo_src_uri}" class="logo-img">
+            <div class="header-wrapper">
+                <div class="header-left">{logo_html}</div>
+                <div class="header-right">
+                    <strong style="color: #1a202c; font-size: 10pt;">ARK Premium Solutions Co., Ltd.</strong><br>
+                    MICT Park, Block 4, Phase 2, Hlaing Township<br>
+                    Yangon, Myanmar | info@arktechsolutions.net
                 </div>
-                <div class="address-text-center">
-                    <strong>ARK Premium Solutions Limited</strong><br>
-                    Corporate Office: 12th Floor, Times City (Office Tower-2), Kamayut, Yangon, Myanmar.<br>
-                    Contact Hotlines: +95 9 445830101 | info@arktechsolutions.net
-                </div>
+                <div class="clear"></div>
             </div>
-            
-            <div class="title-bar">Commercial Quotation</div>
-            
+
+            <div class="divider"></div>
+            <h2 class="doc-title">Commercial Quotation</h2>
+            <br>
+
             <table class="meta-table">
                 <tr>
                     <td>
-                        <strong>Prepared For:</strong><br>
-                        <span style="font-size: 10pt; font-weight: bold; color: #111;">{client_company}</span><br>
-                        Attn: {attn_person}<br>
-                        Email: {attn_email} | Tel: {attn_phone}
+                        <div class="card-box">
+                            <div class="card-title">Prepared For</div>
+                            <strong style="font-size: 10.5pt; color: #1a202c;">{client_company}</strong><br>
+                            Attn: {attn_person}<br>
+                            Email: {attn_email} | Phone: {attn_phone}
+                        </div>
                     </td>
                     <td>
-                        <strong>Reference Context Ledger:</strong><br>
-                        Quotation ID Ref: <strong>{quotation_auto_gen}</strong><br>
-                        Generation Timestamp: {issue_date}<br>
-                        Validity Scope Limit: {validity_bound}<br>
-                        Base Operational Currency: {currency_selection}
+                        <div class="card-box-right">
+                            <div class="card-title">Quotation References</div>
+                            <strong>Reference Designator:</strong> {quotation_auto_gen}<br>
+                            <strong>Target Project Scope:</strong> {project_title}<br>
+                            <strong>Issuance Timestamp:</strong> {issue_date.strftime('%Y-%m-%d')}<br>
+                            <strong>Valid Horizon:</strong> {validity_bound}
+                        </div>
                     </td>
                 </tr>
             </table>
 
-            {exchange_rate_notice}
-
-            <table class="items-table">
+            <table class="data-table">
                 <thead>
                     <tr>
-                        <th class="col-no">No</th>
-                        <th>Part Number</th>
-                        <th>Description</th>
-                        <th class="col-qty">Qty</th>
-                        <th style="text-align: right;">Unit Price</th>
-                        <th style="text-align: right;">Total Price</th>
+                        <th style="width: 8%; text-align: center;">No</th>
+                        <th style="width: 22%;">Part Number / Identifier</th>
+                        <th style="width: 45%;">Functional Itemization Specifications</th>
+                        <th style="width: 8%; text-align: center;">Qty</th>
+                        <th style="width: 17%; text-align: right;">Total Price</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {html_table_rows}
+                    {table_rows_html}
                 </tbody>
             </table>
 
-            <div class="totals-container">
+            <div class="totals-box">
                 <table class="totals-table">
                     <tr>
-                        <td>Gross Framework Subtotal:</td>
-                        <td style="text-align: right; font-weight: 500; white-space: nowrap;">{currency_symbol}{global_subtotal_base:,.2f}</td>
+                        <td style="color: #4a5568;">Gross Subtotal:</td>
+                        <td style="text-align: right; font-weight: 600;">{currency_symbol}{global_subtotal_base:,.2f}</td>
                     </tr>
                     <tr>
-                        <td>Global Aggregate Discount Adjustment:</td>
-                        <td style="text-align: right; color: #dc2626; white-space: nowrap;">-{currency_symbol}{global_discount_base:,.2f}</td>
+                        <td style="color: #4a5568;">Discount Applied:</td>
+                        <td style="text-align: right; font-weight: 600; color: #e53e3e;">-{currency_symbol}{global_discount_base:,.2f}</td>
                     </tr>
                     <tr>
-                        <td>Commercial Tax Pool Value ({global_tax_pct}%):</td>
-                        <td style="text-align: right; white-space: nowrap;">{currency_symbol}{calculated_tax:,.2f}</td>
+                        <td style="color: #4a5568;">Tax Configuration ({global_tax_pct}%):</td>
+                        <td style="text-align: right; font-weight: 600;">{currency_symbol}{calculated_tax:,.2f}</td>
                     </tr>
-                    <tr class="grand-total-row">
-                        <td>Grand Total ({currency_selection}):</td>
-                        <td style="text-align: right; font-size: 10.5pt; white-space: nowrap;">{currency_symbol}{calculated_grand_total:,.2f}</td>
+                    <tr class="grand-total-tr">
+                        <td>Grand Total:</td>
+                        <td style="text-align: right;">{currency_symbol}{calculated_grand_total:,.2f}</td>
                     </tr>
                 </table>
             </div>
+            <div class="clear"></div>
 
-            <div class="footer-notes">
-                <strong>Commercial Delivery Terms & Scope:</strong><br>
-                Estimated Production Delivery Lead Time: {lead_time_frame}<br>
-                Target Execution Payment Schedule Terms: {payment_terms_desc}<br><br>
-                <strong>Operational Provisions & Custom Legal Scope:</strong><br>
-                {terms_and_cond.replace('\n', '<br>')}
+            <div class="footer-terms">
+                <strong>Commercial Logistics Terms & Governance Conditions:</strong><br>
+                1. Equipment delivery windows are anticipated at approximately <strong>{lead_time_frame}</strong> following official sign-off.<br>
+                2. Explicit remittance milestones require compliance with: <strong>{payment_terms_desc}</strong>.<br>
+                3. Additional execution framework notes: {terms_and_cond.replace('\n', '<br>')}
             </div>
         </body>
         </html>
         """
         
         pdf_filename = f"ARK_Quotation_{quotation_auto_gen}.pdf"
-        HTML(string=full_printable_html).write_pdf(pdf_filename)
-        
-        with open(pdf_filename, "rb") as f:
-            st.download_button(label="📥 Download Clean Untruncated PDF Bundle", data=f.read(), file_name=pdf_filename, mime="application/pdf")
+        try:
+            HTML(string=html_document).write_pdf(pdf_filename)
+            with open(pdf_filename, "rb") as pdf_file:
+                pdf_payload = pdf_file.read()
+                
+            st.sidebar.markdown("---")
+            st.sidebar.success("🎉 Enterprise compilation structural integrity cleared!")
+            st.sidebar.download_button(
+                label="📥 Download Finished Quotation PDF Document",
+                data=pdf_payload,
+                file_name=pdf_filename,
+                mime="application/pdf"
+            )
             
-        with get_db() as conn:
-            conn.execute("""
-                INSERT INTO quotations (po_number, creator_id, customer_name, project_name, attention_person, attention_email, attention_phone, status, issue_date, validity, lead_time, payment_term, terms_conditions, subtotal, discount, tax, grand_total, currency_unit, exchange_rate, items_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'SUBMITTED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (quotation_auto_gen, current_user["id"], client_company, project_title, attn_person, attn_email, attn_phone, str(issue_date), validity_bound, lead_time_frame, payment_terms_desc, terms_and_cond, global_subtotal_base, global_discount_base, calculated_tax, calculated_grand_total, currency_selection, exchange_rate, json.dumps(st.session_state.working_items)))
-            conn.commit()
-        st.success("PDF payload built with complete formatting vectors.")
+            with get_db() as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO quotations 
+                    (po_number, creator_id, customer_name, project_name, attention_person, attention_email, attention_phone, status, issue_date, validity, lead_time, payment_term, terms_conditions, subtotal, discount, tax, grand_total, currency_unit, exchange_rate, items_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'SUBMITTED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (quotation_auto_gen, current_user["id"], client_company, project_title, attn_person, attn_email, attn_phone, str(issue_date), validity_bound, lead_time_frame, payment_terms_desc, terms_and_cond, global_subtotal_base, global_discount_base, calculated_tax, calculated_grand_total, currency_selection, exchange_rate, json.dumps(st.session_state.working_items)))
+                conn.commit()
+                
+        except Exception as pdf_err:
+            st.error(f"Engine compilation fault isolated: {pdf_err}")
