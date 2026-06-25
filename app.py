@@ -865,4 +865,234 @@ elif page_selection == "➕ Build New Quotation Module":
                 <td style="white-space: pre-line; padding-left: 10px; color: #334155; padding: 8px; font-style: italic;">{ms_desc}</td>
                 <td style="text-align: center; color: #334155; padding: 8px;">1</td>
                 <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{currency_symbol}{ms_total:,.2f}</td>
-                <td style="text-align: right; font-weight: 600; color: #1e293b; white
+                <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{currency_symbol}{ms_total:,.2f}</td>
+            </tr>
+            '''
+
+        discount_row_markup = ""
+        if global_discount_input > 0:
+            discount_row_markup = f'''
+            <tr>
+                <td style="color: #475569; padding: 4px 0;">Discount Applied:</td>
+                <td style="text-align: right; font-weight: 600; color: #b91c1c; white-space: nowrap; padding: 4px 0;">-{currency_symbol}{global_discount_input:,.2f}</td>
+            </tr>
+            '''
+
+        tax_row_markup = ""
+        if enable_commercial_tax:
+            tax_row_markup += f'''
+            <tr>
+                <td style="color: #475569; padding: 4px 0;">CT:</td>
+                <td style="text-align: right; font-weight: 600; color: #475569; white-space: nowrap; padding: 4px 0;">+{currency_symbol}{comm_tax_amount:,.2f}</td>
+            </tr>
+            '''
+        if enable_wht:
+            tax_row_markup += f'''
+            <tr>
+                <td style="color: #475569; padding: 4px 0;">Withholding Tax WHT ({wht_pct}%):</td>
+                <td style="text-align: right; font-weight: 600; color: #b91c1c; white-space: nowrap; padding: 4px 0;">-{currency_symbol}{wht_tax_amount:,.2f}</td>
+            </tr>
+            '''
+
+        sig_img_markup = ""
+        if current_user["signature_b64"]:
+            sig_img_markup = f'<img src="{current_user["signature_b64"]}" style="max-height: 55px; margin-top: 5px; margin-bottom: 2px; display: block;">'
+        else:
+            sig_img_markup = '<div style="height: 45px; margin-top: 5px; color: #cbd5e1; font-style: italic; font-size: 8pt;">Signature Pending</div>'
+
+        html_document = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                @page {{
+                    size: A4;
+                    margin: 15mm 15mm 20mm 15mm;
+                    @bottom-right {{
+                        content: "Page " counter(page) " of " counter(pages);
+                        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                        font-size: 8pt;
+                        color: #64748b;
+                    }}
+                }}
+                @page :first {{
+                    margin-top: 5mm;
+                }}
+                body {{
+                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    color: #1e293b;
+                    font-size: 9pt;
+                    line-height: 1.6;
+                    width: 100%;
+                }}
+                .header-container {{ 
+                    text-align: center; 
+                    max-height: 1.6in; 
+                    overflow: fixed; 
+                    margin-bottom: 10px;
+                }}    
+                .header-logo {{
+                    margin-bottom: 8px;
+                }}
+                .header-address {{
+                    font-size: 8pt;
+                    color: #475569;
+                    line-height: 1.4;
+                }}
+                .company-group-title {{
+                    font-weight: bold;
+                    color: #00a8e8;
+                    font-size: 11pt;
+                    letter-spacing: 0.3px;
+                    margin-bottom: 2px;
+                }}
+                .divider {{ border-bottom: 2px solid #00a8e8; margin-top: 5px; margin-bottom: 15px; }}
+                .doc-title {{ font-size: 18pt; font-weight: normal; color: #0f172a; margin: 0; text-align: left; }}
+                
+                .meta-table {{ width: 100%; margin-bottom: 15px; table-layout: fixed; border-collapse: collapse; }}
+                .meta-table td {{ vertical-align: top; border: none; padding: 0; width: 50%; }}
+                
+                .card-box {{ background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px; height: 110px; min-height: 110px; box-sizing: border-box; margin-right: 5px; font-size: 8.5pt; }}
+                .card-box-right {{ background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px; height: 110px; min-height: 110px; box-sizing: border-box; margin-left: 5px; font-size: 8.5pt; }}
+                .card-title {{ font-size: 7.5pt; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }}
+                
+                .clear {{ clear: both; height: 5px; }}
+                
+                .data-table {{ width: 100%; max-width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; clear: both; table-layout: auto; }}
+                .data-table th {{ background-color: #1e293b; color: white; font-weight: 500; text-transform: uppercase; font-size: 8pt; padding: 8px; text-align: left; letter-spacing: 0.3px; }}
+                .data-table td {{ font-size: 8.5pt; border-bottom: 1px solid #f1f5f9; }}
+                
+                .totals-box {{ float: right; width: 40%; margin-top: 5px; page-break-inside: avoid; }}
+                .totals-table {{ width: 100%; border-collapse: collapse; font-size: 8.5pt; }}
+                .grand-total-tr {{ background-color: #00a8e8; color: white; font-weight: bold; font-size: 10pt; }}
+                .grand-total-tr td {{ padding: 8px; color: white !important; }}
+                
+                .footer-terms {{ margin-top: 25px; font-size: 8pt; color: #475569; border-top: 1px solid #e2e8f0; padding-top: 10px; page-break-inside: avoid; clear: both; line-height: 1.4; }}
+                .signatory-container {{ margin-top: 25px; width: 100%; page-break-inside: avoid; clear: both; }}
+                .signatory-box {{ width: 240px; float: right; text-align: left; font-size: 8.5pt; color: #1e293b; }}
+            </style>
+        </head>
+        <body>
+            <div class="header-container">
+                <div class="header-logo">{logo_html}</div>
+                <div class="header-address">
+                    <div class="company-group-title">ARK Premium Solution Limited</div>
+                    <strong>ARK Corporate Office :</strong> 18th floor, Times City(office tower-2), Kamayut, Yangon, Myanmar.<br>
+                    <strong>ARK Headquarters Office :</strong> 91, Shwe Taung Kyar 1st Street, Golden Valley 1, Bahan, Yangon, Myanmar.<br>
+                    <strong>ARK Thailand Office :</strong> 1, Soi Ramkhamhaeng 118 Yaek 33-3, Saphan Sung 10240, Bangkok, Thailand.<br>
+                    <strong>website:</strong> www.arktechsolutions.net
+                </div>
+            </div>
+
+            <div class="divider"></div>
+            <h2 class="doc-title">Quotation</h2>
+            <br>
+
+            <table class="meta-table">
+                <tr>
+                    <td>
+                        <div class="card-box">
+                            <div class="card-title">Prepared For</div>
+                            <strong style="font-size: 9.5pt; color: #0f172a; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{client_company}</strong>
+                            Attn: {attn_person}<br>
+                            Email: {attn_email}<br>
+                            Phone: {attn_phone}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="card-box-right">
+                            <div class="card-title">Quotation References</div>
+                            <strong>Ref:</strong> {quotation_auto_gen}<br>
+                            <strong>Project:</strong> {project_title}<br>
+                            <strong>Date:</strong> {issue_date.strftime('%Y-%m-%d')}<br>
+                            <strong>Validity:</strong> {validity_bound}
+                        </div>
+                    </td>
+                </tr>
+            </table>
+            
+            <div class="clear"></div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 6%; text-align: center;">No</th>
+                        <th style="width: 22%;">Part Number</th>
+                        <th style="width: 42%;">Item Description Specifications</th>
+                        <th style="width: 5%; text-align: center;">Qty</th>
+                        <th style="width: 12%; text-align: right;">Unit Price</th>
+                        <th style="width: 13%; text-align: right;">Total Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {table_rows_html}
+                </tbody>
+            </table>
+
+            <div class="totals-box">
+                <table class="totals-table">
+                    <tr>
+                        <td style="color: #475569; padding: 4px 0;">Gross Subtotal:</td>
+                        <td style="text-align: right; font-weight: 600; white-space: nowrap; padding: 4px 0;">{currency_symbol}{global_subtotal_calculated:,.2f}</td>
+                    </tr>
+                    {discount_row_markup}
+                    {tax_row_markup}
+                    <tr class="grand-total-tr">
+                        <td>Grand Total:</td>
+                        <td style="text-align: right; white-space: nowrap;">{currency_symbol}{calculated_grand_total:,.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="clear"></div>
+
+            <div class="footer-terms">
+                <strong>Commercial Logistics Terms & Governance Conditions:</strong><br>
+                1. Delivery Lead-Time Windows: Equipment delivery windows are anticipated at approximately <strong>{lead_time_frame}</strong> following official project sign-off matrix rules.<br>
+                2. Explicit Milestone Commitments: All relative monetary settlement routes must maintain strict compliance with: <strong>{payment_terms_desc}</strong>.<br>
+                3. Additional Execution Scope and Framework Matrix Parameters: {terms_and_cond.replace('\n', '<br>')}
+            </div>
+
+            <div class="signatory-container">
+                <div class="signatory-box">
+                    <div style="border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">
+                        <span style="font-size: 7.5pt; font-weight: bold; color: #64748b; text-transform: uppercase; display: block;">Issued & Authorized By:</span>
+                        {sig_img_markup}
+                    </div>
+                    <div style="margin-top: 6px; font-weight: bold; color: #0f172a; font-size: 9.5pt;">{current_user["name"] or "Authorized Signatory"}</div>
+                    <div style="color: #475569; font-size: 8.5pt; font-weight: 500; margin-top: 2px;">{current_user["designation"] or "Account Operations Manager"}</div>
+                    <div style="color: #64748b; font-size: 8pt; margin-top: 4px; line-height: 1.4;">
+                        Email: {current_user["email"]}<br>
+                        Phone: {current_user["phone"] or "N/A"}
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        pdf_filename = f"ARK_Quotation_{quotation_auto_gen}.pdf"
+        try:
+            HTML(string=html_document).write_pdf(pdf_filename)
+            with open(pdf_filename, "rb") as pdf_file:
+                pdf_payload = pdf_file.read()
+                
+            st.sidebar.markdown("---")
+            st.sidebar.success("🎉 Enterprise compilation structural integrity cleared!")
+            st.sidebar.download_button(
+                label="📥 Download Finished Quotation PDF Document",
+                data=pdf_payload,
+                file_name=pdf_filename,
+                mime="application/pdf"
+            )
+            
+            with get_db() as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO quotations 
+                    (po_number, creator_id, customer_name, project_name, attention_person, attention_email, attention_phone, status, issue_date, validity, lead_time, payment_term, terms_conditions, subtotal, discount, tax_type, tax_rate, tax_amount, grand_total, currency_unit, exchange_rate, items_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'SUBMITTED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (quotation_auto_gen, current_user["id"], client_company, project_title, attn_person, attn_email, attn_phone, str(issue_date), validity_bound, lead_time_frame, payment_terms_desc, terms_and_cond, global_subtotal_calculated, global_discount_input, tax_type_selection, global_tax_pct, calculated_tax, calculated_grand_total, currency_selection, exchange_rate, json.dumps(st.session_state.working_items)))
+                conn.commit()
+                
+        except Exception as pdf_err:
+            st.error(f"Engine compilation fault isolated: {pdf_err}")
