@@ -709,8 +709,8 @@ elif page_selection == "➕ Build New Quotation Module":
         ps_desc = st.text_area("Professional Service Description", "ARK Implementation Support")
         ps_price_usd = st.number_input("Professional Service (USD)", min_value=0.0, value=0.0)
     with srv_c2:
-        ms_desc = st.text_area("Managed Service Description", "ARK Premium 24/7 Monitoring")
-        ms_price_usd = st.number_input("Managed Service (USD)", min_value=0.0, value=0.0)
+        ms_desc = st.text_area("Maintenance Service Description", "ARK Premium 24/7 Monitoring")
+        ms_price_usd = st.number_input("Maintenance Service (USD)", min_value=0.0, value=0.0)
 
     # --- SIDEBAR TAX CONFIGURATION SELECTION MAPPING ---
     st.sidebar.markdown("### 🏛️ Tax Strategies")
@@ -803,9 +803,16 @@ elif page_selection == "➕ Build New Quotation Module":
         if ps_price_usd > 0:
             current_service_index += 1
             ps_total = ps_price_usd * conversion_multiplier
+            # Block Header for Professional Services
             table_rows_html += f'''
+            <tr style="background-color: #f8fafc; font-weight: 600; border-top: 1px solid #e2e8f0;">
+                <td style="text-align: center; color: #1e293b; padding: 8px;">{current_service_index}</td>
+                <td colspan="5" style="padding-left: 10px; color: #1e293b; font-size: 8.5pt; padding: 8px;">
+                    ARK Professional Services
+                </td>
+            </tr>
             <tr style="background-color: #ffffff;">
-                <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}</td>
+                <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}.1</td>
                 <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-ARK-PS</td>
                 <td style="white-space: pre-line; padding-left: 10px; color: #334155; padding: 8px; font-style: italic;">{ps_desc}</td>
                 <td style="text-align: center; color: #334155; padding: 8px;">1</td>
@@ -816,9 +823,16 @@ elif page_selection == "➕ Build New Quotation Module":
         if ms_price_usd > 0:
             current_service_index += 1
             ms_total = ms_price_usd * conversion_multiplier
+            # Block Header for Maintenance Services
             table_rows_html += f'''
+            <tr style="background-color: #f8fafc; font-weight: 600; border-top: 1px solid #e2e8f0;">
+                <td style="text-align: center; color: #1e293b; padding: 8px;">{current_service_index}</td>
+                <td colspan="5" style="padding-left: 10px; color: #1e293b; font-size: 8.5pt; padding: 8px;">
+                    ARK Maintenance Service
+                </td>
+            </tr>
             <tr style="background-color: #ffffff;">
-                <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}</td>
+                <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}.1</td>
                 <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-ARK-MS</td>
                 <td style="white-space: pre-line; padding-left: 10px; color: #334155; padding: 8px; font-style: italic;">{ms_desc}</td>
                 <td style="text-align: center; color: #334155; padding: 8px;">1</td>
@@ -924,7 +938,7 @@ elif page_selection == "➕ Build New Quotation Module":
                 
                 .footer-terms {{ margin-top: 25px; font-size: 8pt; color: #475569; border-top: 1px solid #e2e8f0; padding-top: 10px; page-break-inside: avoid; clear: both; line-height: 1.4; }}
                 .signatory-container {{ margin-top: 25px; width: 100%; page-break-inside: avoid; clear: both; }}
-                .signatory-box {{ width: 220px; float: left; font-size: 8.5pt; color: #1e293b; }}
+                .signatory-box {{ width: 240px; float: right; text-align: left; font-size: 8.5pt; color: #1e293b; }}
             </style>
         </head>
         <body>
@@ -1009,13 +1023,13 @@ elif page_selection == "➕ Build New Quotation Module":
 
             <div class="signatory-container">
                 <div class="signatory-box">
-                    <div style="border-bottom: 1px solid #cbd5e1; padding-bottom: 2px;">
+                    <div style="border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">
                         <span style="font-size: 7.5pt; font-weight: bold; color: #64748b; text-transform: uppercase; display: block;">Issued & Authorized By:</span>
                         {sig_img_markup}
                     </div>
-                    <div style="margin-top: 4px; font-weight: bold; color: #0f172a;">{current_user["name"] or "Authorized Signatory"}</div>
-                    <div style="color: #475569; font-size: 8pt;">{current_user["designation"] or "Account Operations Manager"}</div>
-                    <div style="color: #64748b; font-size: 7.5pt; margin-top: 1px;">
+                    <div style="margin-top: 6px; font-weight: bold; color: #0f172a; font-size: 9.5pt;">{current_user["name"] or "Authorized Signatory"}</div>
+                    <div style="color: #475569; font-size: 8.5pt; font-weight: 500; margin-top: 2px;">{current_user["designation"] or "Account Operations Manager"}</div>
+                    <div style="color: #64748b; font-size: 8pt; margin-top: 4px; line-height: 1.4;">
                         Email: {current_user["email"]}<br>
                         Phone: {current_user["phone"] or "N/A"}
                     </div>
