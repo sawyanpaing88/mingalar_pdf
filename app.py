@@ -111,9 +111,7 @@ def parse_uploaded_document(df_raw):
     if df_raw.empty:
         return structured_items
 
-    # Soft-align columns to handle variations safely
     df_raw.columns = [str(c).strip() for c in df_raw.columns]
-    
     sample_rows = df_raw.head(10).astype(str)
     desc_col = sample_rows.apply(lambda x: x.str.len().max()).idxmax()
     
@@ -166,7 +164,7 @@ def parse_uploaded_document(df_raw):
             "No": row_no,
             "is_sub": is_sub_row,
             "parent_idx": p_idx,
-            "Part Number/Model": part_no,
+            "Part Number/Model": part_no if is_sub_row else "",
             "Description": desc_val,
             "Qty": qty_val,
             "Unit Price": price_val,
@@ -509,15 +507,16 @@ elif page_selection == "➕ Build New Quotation Module":
             st.success(f"Applied a uniform {global_margin_input}% margin setting across all sub-portfolio entries.")
             st.rerun()
 
-    # --- MATH ENGINE PIPELINE ---
+    # --- MATH ENGINE PIPELINE & MAIN ROW CLEANING ---
     for item in st.session_state.working_items:
         if not item.get("is_sub", False):
-            item["Qty"] = 0
-            item["Unit Price"] = 0.0
-            item["Margin"] = 0.0
-            item["Total Price"] = 0.0
+            item["Part Number/Model"] = ""
+            item["Qty"] = None
+            item["Unit Price"] = None
+            item["Margin"] = None
+            item["Total Price"] = None
         else:
-            qty = float(item.get("Qty") or 1)
+            qty = float(item.get("Qty") or 0)
             u_p = float(item.get("Unit Price") or 0.0)
             m_pct = float(item.get("Margin") or 0.0) / 100.0
             final_unit_price = u_p / (1 - m_pct) if m_pct < 1.0 else u_p
@@ -546,15 +545,16 @@ elif page_selection == "➕ Build New Quotation Module":
     if not edited_df.equals(df_display[["No", "Part Number/Model", "Description", "Qty", "Unit Price", "Margin", "Total Price"]]):
         updated_records = []
         for idx, row in edited_df.iterrows():
-            orig_meta = st.session_state.working_items[idx] if idx < len(st.session_state.working_items) else {"is_sub": False, "parent_idx": "1"}
+            # Safeguard data generation index transitions
+            orig_meta = st.session_state.working_items[idx] if idx < len(st.session_state.working_items) else {"is_sub": "." in str(row["No"]), "parent_idx": "1"}
             row_no = str(row["No"] or "")
             is_sub_row = "." in row_no
             p_idx = row_no.split(".")[0] if is_sub_row else row_no
             
-            try: ui_margin = float(row.get("Margin") or 0.0)
+            try: ui_margin = float(row.get("Margin") or 0.0) if not pd.isna(row.get("Margin")) else 0.0
             except: ui_margin = float(global_margin_input) if is_sub_row else 0.0
                 
-            try: old_margin = float(orig_meta.get("Margin") or 0.0)
+            try: old_margin = float(orig_meta.get("Margin") or 0.0) if orig_meta.get("Margin") is not None else 0.0
             except: old_margin = 0.0
 
             target_margin = ui_margin
@@ -562,11 +562,11 @@ elif page_selection == "➕ Build New Quotation Module":
                 parent_row_matches = [r for _, r in edited_df.iterrows() if str(r.get("No")) == p_idx]
                 if parent_row_matches:
                     p_row = parent_row_matches[0]
-                    try: p_ui_margin = float(p_row.get("Margin") or 0.0)
+                    try: p_ui_margin = float(p_row.get("Margin") or 0.0) if not pd.isna(p_row.get("Margin")) else 0.0
                     except: p_ui_margin = 0.0
                         
                     p_orig_matches = [i for i in st.session_state.working_items if str(i.get("No")) == p_idx]
-                    p_old_margin = float(p_orig_matches[0].get("Margin", 0.0)) if p_orig_matches else 0.0
+                    p_old_margin = float(p_orig_matches[0].get("Margin", 0.0)) if (p_orig_matches and p_orig_matches[0].get("Margin") is not None) else 0.0
                     
                     if p_ui_margin != p_old_margin and ui_margin == old_margin:
                         target_margin = p_ui_margin
@@ -597,7 +597,7 @@ elif page_selection == "➕ Build New Quotation Module":
             st.session_state.working_items.append({
                 "No": next_no, "is_sub": False, "parent_idx": next_no, 
                 "Part Number/Model": "", "Description": "NEW STRUCTURAL BLOCK HEADER", 
-                "Qty": 0, "Unit Price": 0.0, "Margin": 0.0, "Total Price": 0.0
+                "Qty": None, "Unit Price": None, "Margin": None, "Total Price": None
             })
             st.rerun()
     with btn_c2:
@@ -623,7 +623,7 @@ elif page_selection == "➕ Build New Quotation Module":
         ms_price_usd = st.number_input("Managed Service (USD)", min_value=0.0, value=0.0)
 
     # --- MATH ENGINE PIPELINE ---
-    item_subtotal_base = sum([float(item.get("Total Price") or 0.0) for item in st.session_state.working_items])
+    item_subtotal_base = sum([float(item.get("Total Price") or 0.0) for item in st.session_state.working_items if item.get("Total Price") is not None])
     global_subtotal_base = item_subtotal_base + ((ps_price_usd + ms_price_usd) * conversion_multiplier)
     
     global_discount_base = st.sidebar.number_input(f"Discount ({currency_selection})", min_value=0.0, value=0.0)
@@ -662,7 +662,6 @@ elif page_selection == "➕ Build New Quotation Module":
             is_sub = item.get("is_sub", False)
             
             if not is_sub:
-                # MAIN ROW: Colspan merges columns for an adaptive text header banner
                 table_rows_html += f'''
                 <tr style="background-color: #edf2f7; font-weight: bold; border-top: 2px solid #cbd5e0;">
                     <td style="text-align: center;">{item.get("No", "")}</td>
@@ -672,18 +671,17 @@ elif page_selection == "➕ Build New Quotation Module":
                 </tr>
                 '''
             else:
-                # SUB-ROW: Explicit financial data layout cells
+                total_p = item.get("Total Price") or 0.0
                 table_rows_html += f'''
                 <tr style="background-color: #ffffff;">
                     <td style="text-align: center; color: #718096; font-size: 8.5pt;">{item.get("No", "")}</td>
                     <td style="color: #4a5568; font-family: monospace;">{item.get("Part Number/Model", "")}</td>
                     <td style="padding-left: 20px; color: #2d3748; font-style: italic;">{item.get("Description", "")}</td>
                     <td style="text-align: center;">{item.get("Qty", 1)}</td>
-                    <td style="text-align: right; font-weight: 600;">{currency_symbol}{item.get("Total Price", 0.0):,.2f}</td>
+                    <td style="text-align: right; font-weight: 600;">{currency_symbol}{total_p:,.2f}</td>
                 </tr>
                 '''
 
-        # --- SERVICE ATTACHMENT APPEND CODES ---
         if ps_price_usd > 0:
             ps_total = ps_price_usd * conversion_multiplier
             table_rows_html += f'''
@@ -707,7 +705,6 @@ elif page_selection == "➕ Build New Quotation Module":
             </tr>
             '''
 
-        # HTML Layout Design String Template
         html_document = f"""
         <!DOCTYPE html>
         <html>
