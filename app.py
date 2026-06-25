@@ -957,7 +957,7 @@ elif page_selection == "➕ Build New Quotation Module":
                     display_unit = f"{currency_symbol}{unit_p:,.2f}"
 
                 table_rows_html += f'''
-                <tr style="background-color: #ffffff;">
+                <tr style="background-color: transparent;">
                     <td style="text-align: center; color: #64748b; padding: 8px;">{item.get("No", "")}</td>
                     <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">{item.get("Part Number", "")}</td>
                     <td style="padding-left: 10px; color: #334155; font-style: italic; word-break: break-word; padding: 8px;">{item.get("Description", "")}</td>
