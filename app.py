@@ -148,7 +148,7 @@ elif page_selection == "🏠 Dashboard Console":
         st.info("No documents compiled yet.")
 
 # ==========================================
-# ➕ PREVIOUS SCRIPT UI ITEMIZATION MODULE
+# ➕ ITEMIZATION MODULE (RESTORED OLD TREE UI)
 # ==========================================
 elif page_selection == "➕ Build New Quotation Module":
     st.header("➕ Document Generation Sandbox")
@@ -242,7 +242,7 @@ elif page_selection == "➕ Build New Quotation Module":
         
     st.session_state.structure_blocks = updated_blocks
 
-    # --- TAX CONFIGURATIONS (DUAL SUPPORT COEXISTENCE) ---
+    # --- TAX CONFIGURATIONS ---
     st.sidebar.markdown("### 🏛 Tax Configuration Options")
     tax_options_chosen = st.sidebar.multiselect("Select Tax Frameworks to Apply", ["Commercial Tax", "Withholding Tax (WHT)"], default=["Commercial Tax"])
     
@@ -344,7 +344,6 @@ elif page_selection == "➕ Build New Quotation Module":
                 
                 .footer-terms {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; font-size: 7.5pt; color: #475569; }}
                 
-                /* EXPLICIT SIGNATORY MOVEMENT TO THE LEFT */
                 .signatory-left-container {{ margin-top: 30px; text-align: left; page-break-inside: avoid; width: 260px; float: left; }}
                 .sig-line {{ border-bottom: 1px dashed #cbd5e1; padding-bottom: 5px; margin-bottom: 5px; }}
             </style>
@@ -386,7 +385,7 @@ elif page_selection == "➕ Build New Quotation Module":
                     <tr>
                         <th style="width: 6%; text-align: center;">No</th>
                         <th style="width: 20%;">Part Number</th>
-                        <th style="width: 44%;">Functional Itemization /SPECIFICATIONS</th>
+                        <th style="width: 44%;">Functional Itemization / SPECIFICATIONS</th>
                         <th style="width: 6%; text-align: center;">Qty</th>
                         <th style="width: 12%; text-align: right;">Unit Price</th>
                         <th style="width: 12%; text-align: right;">Total Price</th>
@@ -452,7 +451,6 @@ elif page_selection == "➕ Build New Quotation Module":
                 st.sidebar.download_button("📥 Download Finalized PDF Quote Asset", data=f.read(), file_name=pdf_filename, mime="application/pdf")
             st.sidebar.success("🎉 PDF Compiled Successfully!")
             
-            # Save transaction instance to SQLite metrics
             with get_db() as conn:
                 conn.execute(
                     "INSERT INTO quotations (po_number, creator_id, customer_name, project_name, attention_person, status, grand_total, items_json) VALUES (?,?,?,?,?,?,?,?)",
