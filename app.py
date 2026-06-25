@@ -906,11 +906,13 @@ elif page_selection == "➕ Build New Quotation Module":
                     line-height: 1.5;
                     width: 100%;
                 }}
-                .header-container {{
-                    text-align: center;
-                    margin-bottom: 15px;
-                    width: 100%;
-                }}
+              /* Constrained Header to 1.6in */
+                .header-container {{ 
+                    text-align: center; 
+                    max-height: 1.6in; 
+                    overflow: hidden; 
+                    margin-bottom: 10px;
+                }}    
                 .header-logo {{
                     margin-bottom: 8px;
                 }}
