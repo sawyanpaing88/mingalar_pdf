@@ -88,6 +88,7 @@ def init_db():
             )
         """)
         
+        # Database schema patching helpers
         cursor = conn.cursor()
         cursor.execute("PRAGMA table_info(users)")
         u_cols = [c[1] for c in cursor.fetchall()]
@@ -119,6 +120,7 @@ def hash_pwd(password):
 def send_mock_verification_email(email, code):
     st.info(f"📧 Transactional System Log: Sent verification code `{code}` to verified destination mailbox {email}")
 
+# --- PARSING HEURISTICS ENGINE ---
 def parse_uploaded_document(df_raw):
     structured_items = []
     if df_raw.empty:
@@ -673,54 +675,270 @@ elif page_selection == "➕ Build New Quotation Module":
         st.session_state.working_items = updated_records
         st.rerun()
 
-    # --- PDF COMPILATION SECTION ---
+    btn_c1, btn_c2 = st.columns(2)
+    with btn_c1:
+        if st.button("➕ Add Main Row Divider"):
+            main_rows = []
+            for item in st.session_state.working_items:
+                if not item.get("is_sub", False):
+                    try: main_rows.append(int(float(item["No"] or 0)))
+                    except: pass
+            next_no = str(max(main_rows) + 1 if main_rows else 1)
+            st.session_state.working_items.append({
+                "No": next_no, "is_sub": False, "parent_idx": next_no, 
+                "Part Number": "", "Description": "NEW STRUCTURAL BLOCK HEADER", 
+                "Qty": None, "Unit Price": None, "Margin": None, "Total Price": None
+            })
+            st.rerun()
+    with btn_c2:
+        if st.button("🌿 Add Sub-Row Element"):
+            if st.session_state.working_items:
+                last_item = st.session_state.working_items[-1]
+                p_idx = last_item.get("parent_idx", "1")
+                siblings = [item for item in st.session_state.working_items if item.get("is_sub", False) and item.get("parent_idx") == p_idx]
+                st.session_state.working_items.append({
+                    "No": f"{p_idx}.{len(siblings) + 1}", "is_sub": True, "parent_idx": p_idx, 
+                    "Part Number": "NEW-ITEM", "Description": "Nested equipment asset line specifications", 
+                    "Qty": 1, "Unit Price": 0.0, "Margin": float(global_margin_input), "Total Price": 0.0
+                })
+                st.rerun()
+
+    st.markdown("---")
+    srv_c1, srv_c2 = st.columns(2)
+    with srv_c1:
+        ps_desc = st.text_area("Professional Service Description", "ARK Implementation Support")
+        ps_price_usd = st.number_input("Professional Service (USD)", min_value=0.0, value=0.0)
+    with srv_c2:
+        ms_desc = st.text_area("Maintenance Service Description", "ARK Premium 24/7 Monitoring")
+        ms_price_usd = st.number_input("Maintenance Service (USD)", min_value=0.0, value=0.0)
+
+    # --- SIDEBAR TAX CONFIGURATION SELECTION MAPPING ---
+    st.sidebar.markdown("### 🏛️ Tax Strategies")
+    enable_commercial_tax = st.sidebar.checkbox("Apply Commercial Tax", value=True)
+    commercial_tax_pct = 5.0
+    if enable_commercial_tax:
+        commercial_tax_pct = st.sidebar.number_input("Commercial Tax Factor (%)", min_value=0.0, value=5.0, key="comm_tax_val")
+        
+    enable_wht = st.sidebar.checkbox("Apply Withholding Tax (WHT)", value=False)
+    wht_pct = 2.0
+    if enable_wht:
+        wht_pct = st.sidebar.number_input("Withholding Tax (WHT) Factor (%)", min_value=0.0, value=2.0, key="wht_tax_val")
+
+    # Calculate subtotal using totals already containing conversion values
+    item_subtotal_rendered = sum([float(item.get("Total Price") or 0.0) for item in st.session_state.working_items if item.get("Total Price") is not None])
+    global_subtotal_calculated = item_subtotal_rendered + ((ps_price_usd + ms_price_usd) * conversion_multiplier)
+    
+    global_discount_input = st.sidebar.number_input(f"Discount ({currency_selection})", min_value=0.0, value=0.0)
+    subtotal_after_disc = max(0.0, global_subtotal_calculated - global_discount_input)
+    
+    comm_tax_amount = (subtotal_after_disc * (commercial_tax_pct / 100.0)) if enable_commercial_tax else 0.0
+    wht_tax_amount = (subtotal_after_disc * (wht_pct / 100.0)) if enable_wht else 0.0
+    
+    # Grand total logic handles both adjustments simultaneously
+    calculated_grand_total = subtotal_after_disc + comm_tax_amount - wht_tax_amount
+    
+    # Telemetry data mapping strings for database archival 
+    active_strategies = []
+    if enable_commercial_tax: active_strategies.append(f"Commercial Tax ({commercial_tax_pct}%)")
+    if enable_wht: active_strategies.append(f"WHT ({wht_pct}%)")
+    tax_type_selection = " + ".join(active_strategies) if active_strategies else "None"
+    global_tax_pct = commercial_tax_pct if enable_commercial_tax else wht_pct
+    calculated_tax = comm_tax_amount + wht_tax_amount
+    
+    st.sidebar.markdown(f"**Gross Subtotal:** {currency_symbol}{global_subtotal_calculated:,.2f}")
+    if enable_commercial_tax:
+        st.sidebar.markdown(f"**Commercial Tax ({commercial_tax_pct}%):** +{currency_symbol}{comm_tax_amount:,.2f}")
+    if enable_wht:
+        st.sidebar.markdown(f"**Withholding Tax (WHT) ({wht_pct}%):** -{currency_symbol}{wht_tax_amount:,.2f}")
+    st.sidebar.markdown(f"### **Grand Total:** {currency_symbol}{calculated_grand_total:,.2f}")
+
+    action_c1, action_c2 = st.columns(2)
+    if action_c1.button("💾 Persist Document Configuration (Save Draft)"):
+        with get_db() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO quotations (po_number, creator_id, customer_name, project_name, attention_person, attention_email, attention_phone, status, issue_date, validity, lead_time, payment_term, terms_conditions, subtotal, discount, tax_type, tax_rate, tax_amount, grand_total, currency_unit, exchange_rate, items_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (quotation_auto_gen, current_user["id"], client_company, project_title, attn_person, attn_email, attn_phone, str(issue_date), validity_bound, lead_time_frame, payment_terms_desc, terms_and_cond, global_subtotal_calculated, global_discount_input, tax_type_selection, global_tax_pct, calculated_tax, calculated_grand_total, currency_selection, exchange_rate, json.dumps(st.session_state.working_items)))
+            conn.commit()
+        st.success("Draft compiled and archived.")
+
     if action_c2.button("🖨️ Compile Official Corporate PDF Engine Asset"):
         if st.session_state.default_logo_base64 is not None:
             logo_html = f'<img src="{st.session_state.default_logo_base64}" style="max-height: 65px; max-width: 220px; object-fit: contain;">'
         else:
-            logo_html = '<h2 style="color:#00a8e8; margin:0; font-family:\'Helvetica Neue\',Arial; font-size: 18pt;">ARK PREMIUM SOLUTION</h2>'
+            logo_html = '<h2 style="color:#00a8e8; margin:0; font-family:\'Helvetica Neue\',Arial; font-size: 18pt; font-weight: normal; letter-spacing: 0.5px;">ARK PREMIUM SOLUTION</h2>'
 
+        max_main_no = max([int(float(item.get("parent_idx", 0))) for item in st.session_state.working_items if str(item.get("parent_idx", "")).isdigit()] + [1])
+
+        # --- HTML ROW POPULATION BUILDER ---
         table_rows_html = ""
         for item in st.session_state.working_items:
-            if not item.get("is_sub", False):
+            is_sub = item.get("is_sub", False)
+            
+            if not is_sub:
                 table_rows_html += f'''
                 <tr style="background-color: #f8fafc; font-weight: 600; border-top: 1px solid #e2e8f0;">
                     <td style="text-align: center; color: #1e293b; padding: 8px;">{item.get("No", "")}</td>
-                    <td colspan="5" style="padding-left: 10px; color: #1e293b; font-size: 8.5pt; padding: 8px;">{item.get("Description", "Main Section")}</td>
+                    <td colspan="5" style="padding-left: 10px; color: #1e293b; font-size: 8.5pt; padding: 8px;">
+                        {item.get("Description", "Main Section")}
+                    </td>
                 </tr>
                 '''
             else:
                 raw_base_unit = float(item.get("Calculated Unit Price Base") or 0.0)
                 unit_p = raw_base_unit * conversion_multiplier
                 total_p = (raw_base_unit * float(item.get("Qty") or 0)) * conversion_multiplier
-                
-                # FOC LOGIC: Display FOC if Total Price is 0
-                display_total = "FOC" if total_p <= 0 else f"{currency_symbol}{total_p:,.2f}"
-                
                 table_rows_html += f'''
                 <tr style="background-color: #ffffff;">
                     <td style="text-align: center; color: #64748b; padding: 8px;">{item.get("No", "")}</td>
-                    <td style="color: #334155; font-family: monospace; padding: 8px;">{item.get("Part Number", "")}</td>
-                    <td style="padding-left: 10px; color: #334155; font-style: italic; padding: 8px;">{item.get("Description", "")}</td>
+                    <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">{item.get("Part Number", "")}</td>
+                    <td style="padding-left: 10px; color: #334155; font-style: italic; word-break: break-word; padding: 8px;">{item.get("Description", "")}</td>
                     <td style="text-align: center; color: #334155; padding: 8px;">{item.get("Qty", 1)}</td>
-                    <td style="text-align: right; color: #334155; padding: 8px;">{currency_symbol}{unit_p:,.2f}</td>
-                    <td style="text-align: right; font-weight: 600; color: #1e293b; padding: 8px;">{display_total}</td>
+                    <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{currency_symbol}{unit_p:,.2f}</td>
+                    <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{currency_symbol}{total_p:,.2f}</td>
                 </tr>
                 '''
+
+        current_service_index = max_main_no
+        if ps_price_usd > 0:
+            current_service_index += 1
+            ps_total = ps_price_usd * conversion_multiplier
+            # Block Header for Professional Services
+            table_rows_html += f'''
+            <tr style="background-color: #f8fafc; font-weight: 600; border-top: 1px solid #e2e8f0;">
+                <td style="text-align: center; color: #1e293b; padding: 8px;">{current_service_index}</td>
+                <td colspan="5" style="padding-left: 10px; color: #1e293b; font-size: 8.5pt; padding: 8px;">
+                    ARK Professional Services
+                </td>
+            </tr>
+            <tr style="background-color: #ffffff;">
+                <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}.1</td>
+                <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-ARK-PS</td>
+                <td style="white-space: pre-line; padding-left: 10px; color: #334155; padding: 8px; font-style: italic;">{ps_desc}</td>
+                <td style="text-align: center; color: #334155; padding: 8px;">1</td>
+                <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{currency_symbol}{ps_total:,.2f}</td>
+                <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{currency_symbol}{ps_total:,.2f}</td>
+            </tr>
+            '''
+        if ms_price_usd > 0:
+            current_service_index += 1
+            ms_total = ms_price_usd * conversion_multiplier
+            # Block Header for Maintenance Services
+            table_rows_html += f'''
+            <tr style="background-color: #f8fafc; font-weight: 600; border-top: 1px solid #e2e8f0;">
+                <td style="text-align: center; color: #1e293b; padding: 8px;">{current_service_index}</td>
+                <td colspan="5" style="padding-left: 10px; color: #1e293b; font-size: 8.5pt; padding: 8px;">
+                    ARK Maintenance Service
+                </td>
+            </tr>
+            <tr style="background-color: #ffffff;">
+                <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}.1</td>
+                <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-ARK-MS</td>
+                <td style="white-space: pre-line; padding-left: 10px; color: #334155; padding: 8px; font-style: italic;">{ms_desc}</td>
+                <td style="text-align: center; color: #334155; padding: 8px;">1</td>
+                <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{currency_symbol}{ms_total:,.2f}</td>
+                <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{currency_symbol}{ms_total:,.2f}</td>
+            </tr>
+            '''
+
+        discount_row_markup = ""
+        if global_discount_input > 0:
+            discount_row_markup = f'''
+            <tr>
+                <td style="color: #475569; padding: 4px 0;">Discount Applied:</td>
+                <td style="text-align: right; font-weight: 600; color: #b91c1c; white-space: nowrap; padding: 4px 0;">-{currency_symbol}{global_discount_input:,.2f}</td>
+            </tr>
+            '''
+
+        tax_row_markup = ""
+        if enable_commercial_tax:
+            tax_row_markup += f'''
+            <tr>
+                <td style="color: #475569; padding: 4px 0;">Commercial Tax ({commercial_tax_pct}%):</td>
+                <td style="text-align: right; font-weight: 600; color: #475569; white-space: nowrap; padding: 4px 0;">+{currency_symbol}{comm_tax_amount:,.2f}</td>
+            </tr>
+            '''
+        if enable_wht:
+            tax_row_markup += f'''
+            <tr>
+                <td style="color: #475569; padding: 4px 0;">Withholding Tax WHT ({wht_pct}%):</td>
+                <td style="text-align: right; font-weight: 600; color: #b91c1c; white-space: nowrap; padding: 4px 0;">-{currency_symbol}{wht_tax_amount:,.2f}</td>
+            </tr>
+            '''
+
+        sig_img_markup = ""
+        if current_user["signature_b64"]:
+            sig_img_markup = f'<img src="{current_user["signature_b64"]}" style="max-height: 55px; margin-top: 5px; margin-bottom: 2px; display: block;">'
+        else:
+            sig_img_markup = '<div style="height: 45px; margin-top: 5px; color: #cbd5e1; font-style: italic; font-size: 8pt;">Signature Pending</div>'
 
         html_document = f"""
         <!DOCTYPE html>
         <html>
         <head>
+            <meta charset="utf-8">
             <style>
-                @page {{ size: A4; margin: 15mm; }}
-                body {{ font-family: sans-serif; font-size: 9pt; }}
-                .header-container {{ text-align: center; max-height: 1.5in; overflow: hidden; margin-bottom: 10px; }}
-                .header-address {{ font-size: 8pt; color: #475569; line-height: 1.2; }}
-                .company-group-title {{ font-weight: bold; color: #00a8e8; font-size: 11pt; }}
-                .data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
-                .data-table th {{ background-color: #1e293b; color: white; padding: 8px; text-align: left; }}
-                .data-table td {{ border-bottom: 1px solid #f1f5f9; padding: 8px; }}
+                @page {{
+                    size: A4;
+                    margin: 15mm 15mm 20mm 15mm;
+                    @bottom-right {{
+                        content: "Page " counter(page) " of " counter(pages);
+                        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                        font-size: 8pt;
+                        color: #64748b;
+                    }}
+                }}
+                body {{
+                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    color: #1e293b;
+                    font-size: 9pt;
+                    line-height: 1.5;
+                    width: 100%;
+                }}
+                .header-container {{
+                    text-align: center;
+                    margin-bottom: 15px;
+                    width: 100%;
+                }}
+                .header-logo {{
+                    margin-bottom: 8px;
+                }}
+                .header-address {{
+                    font-size: 8pt;
+                    color: #475569;
+                    line-height: 1.4;
+                }}
+                .company-group-title {{
+                    font-weight: bold;
+                    color: #00a8e8;
+                    font-size: 11pt;
+                    letter-spacing: 0.3px;
+                    margin-bottom: 2px;
+                }}
+                .divider {{ border-bottom: 2px solid #00a8e8; margin-top: 5px; margin-bottom: 15px; }}
+                .doc-title {{ font-size: 18pt; font-weight: normal; color: #0f172a; margin: 0; text-align: left; }}
+                
+                .meta-table {{ width: 100%; margin-bottom: 15px; table-layout: fixed; border-collapse: collapse; }}
+                .meta-table td {{ vertical-align: top; border: none; padding: 0; width: 50%; }}
+                
+                .card-box {{ background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px; height: 110px; min-height: 110px; box-sizing: border-box; margin-right: 5px; font-size: 8.5pt; }}
+                .card-box-right {{ background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px; height: 110px; min-height: 110px; box-sizing: border-box; margin-left: 5px; font-size: 8.5pt; }}
+                .card-title {{ font-size: 7.5pt; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }}
+                
+                .clear {{ clear: both; height: 5px; }}
+                
+                .data-table {{ width: 100%; max-width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; clear: both; table-layout: auto; }}
+                .data-table th {{ background-color: #1e293b; color: white; font-weight: 500; text-transform: uppercase; font-size: 8pt; padding: 8px; text-align: left; letter-spacing: 0.3px; }}
+                .data-table td {{ font-size: 8.5pt; border-bottom: 1px solid #f1f5f9; }}
+                
+                .totals-box {{ float: right; width: 40%; margin-top: 5px; page-break-inside: avoid; }}
+                .totals-table {{ width: 100%; border-collapse: collapse; font-size: 8.5pt; }}
+                .grand-total-tr {{ background-color: #00a8e8; color: white; font-weight: bold; font-size: 10pt; }}
+                .grand-total-tr td {{ padding: 8px; }}
+                
+                .footer-terms {{ margin-top: 25px; font-size: 8pt; color: #475569; border-top: 1px solid #e2e8f0; padding-top: 10px; page-break-inside: avoid; clear: both; line-height: 1.4; }}
+                .signatory-container {{ margin-top: 25px; width: 100%; page-break-inside: avoid; clear: both; }}
+                .signatory-box {{ width: 240px; float: right; text-align: left; font-size: 8.5pt; color: #1e293b; }}
             </style>
         </head>
         <body>
@@ -728,26 +946,121 @@ elif page_selection == "➕ Build New Quotation Module":
                 <div class="header-logo">{logo_html}</div>
                 <div class="header-address">
                     <div class="company-group-title">ARK Premium Solution Limited</div>
-                    <strong>ARK Corporate Office :</strong> 18th floor, Times City(office tower-2), Kamayut, Yangon, Myanmar.<br>
+                    <strong>ARK Corporate Office :</strong> 12th floor, Times City(office tower-2), Kamayut, Yangon, Myanmar.<br>
                     <strong>ARK Headquarters Office :</strong> 91, Shwe Taung Kyar 1st Street, Golden Valley 1, Bahan, Yangon, Myanmar.<br>
                     <strong>ARK Thailand Office :</strong> 1, Soi Ramkhamhaeng 118 Yaek 33-3, Saphan Sung 10240, Bangkok, Thailand.<br>
-                    www.arktechsolutions.net
+                    <strong>Tel:</strong> +95 9 445830101
                 </div>
             </div>
-            <div style="border-bottom: 2px solid #00a8e8; margin: 10px 0;"></div>
-            <table class="data-table">
-                <thead><tr><th>No</th><th>Part Number</th><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total Price</th></tr></thead>
-                <tbody>{table_rows_html}</tbody>
+
+            <div class="divider"></div>
+            <h2 class="doc-title">Commercial Quotation</h2>
+            <br>
+
+            <table class="meta-table">
+                <tr>
+                    <td>
+                        <div class="card-box">
+                            <div class="card-title">Prepared For</div>
+                            <strong style="font-size: 9.5pt; color: #0f172a; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{client_company}</strong>
+                            Attn: {attn_person}<br>
+                            Email: {attn_email}<br>
+                            Phone: {attn_phone}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="card-box-right">
+                            <div class="card-title">Quotation References</div>
+                            <strong>Ref:</strong> {quotation_auto_gen}<br>
+                            <strong>Project:</strong> {project_title}<br>
+                            <strong>Date:</strong> {issue_date.strftime('%Y-%m-%d')}<br>
+                            <strong>Validity:</strong> {validity_bound}
+                        </div>
+                    </td>
+                </tr>
             </table>
+            
+            <div class="clear"></div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 6%; text-align: center;">No</th>
+                        <th style="width: 22%;">Part Number</th>
+                        <th style="width: 42%;">Item Description Specifications</th>
+                        <th style="width: 5%; text-align: center;">Qty</th>
+                        <th style="width: 12%; text-align: right;">Unit Price</th>
+                        <th style="width: 13%; text-align: right;">Total Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {table_rows_html}
+                </tbody>
+            </table>
+
+            <div class="totals-box">
+                <table class="totals-table">
+                    <tr>
+                        <td style="color: #475569; padding: 4px 0;">Gross Subtotal:</td>
+                        <td style="text-align: right; font-weight: 600; white-space: nowrap; padding: 4px 0;">{currency_symbol}{global_subtotal_calculated:,.2f}</td>
+                    </tr>
+                    {discount_row_markup}
+                    {tax_row_markup}
+                    <tr class="grand-total-tr">
+                        <td>Grand Total:</td>
+                        <td style="text-align: right; white-space: nowrap;">{currency_symbol}{calculated_grand_total:,.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="clear"></div>
+
+            <div class="footer-terms">
+                <strong>Commercial Logistics Terms & Governance Conditions:</strong><br>
+                1. Delivery Lead-Time Windows: Equipment delivery windows are anticipated at approximately <strong>{lead_time_frame}</strong> following official project sign-off matrix rules.<br>
+                2. Explicit Milestone Commitments: All relative monetary settlement routes must maintain strict compliance with: <strong>{payment_terms_desc}</strong>.<br>
+                3. Additional Execution Scope and Framework Matrix Parameters: {terms_and_cond.replace('\n', '<br>')}
+            </div>
+
+            <div class="signatory-container">
+                <div class="signatory-box">
+                    <div style="border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">
+                        <span style="font-size: 7.5pt; font-weight: bold; color: #64748b; text-transform: uppercase; display: block;">Issued & Authorized By:</span>
+                        {sig_img_markup}
+                    </div>
+                    <div style="margin-top: 6px; font-weight: bold; color: #0f172a; font-size: 9.5pt;">{current_user["name"] or "Authorized Signatory"}</div>
+                    <div style="color: #475569; font-size: 8.5pt; font-weight: 500; margin-top: 2px;">{current_user["designation"] or "Account Operations Manager"}</div>
+                    <div style="color: #64748b; font-size: 8pt; margin-top: 4px; line-height: 1.4;">
+                        Email: {current_user["email"]}<br>
+                        Phone: {current_user["phone"] or "N/A"}
+                    </div>
+                </div>
+            </div>
         </body>
         </html>
         """
-        # ... (rest of PDF save and download logic)
+        
+        pdf_filename = f"ARK_Quotation_{quotation_auto_gen}.pdf"
         try:
-            pdf_filename = f"ARK_Quotation_{quotation_auto_gen}.pdf"
             HTML(string=html_document).write_pdf(pdf_filename)
-            with open(pdf_filename, "rb") as f:
-                st.sidebar.download_button("📥 Download PDF", data=f.read(), file_name=pdf_filename, mime="application/pdf")
-            st.success("PDF Compiled successfully!")
-        except Exception as e:
-            st.error(f"Error: {e}")
+            with open(pdf_filename, "rb") as pdf_file:
+                pdf_payload = pdf_file.read()
+                
+            st.sidebar.markdown("---")
+            st.sidebar.success("🎉 Enterprise compilation structural integrity cleared!")
+            st.sidebar.download_button(
+                label="📥 Download Finished Quotation PDF Document",
+                data=pdf_payload,
+                file_name=pdf_filename,
+                mime="application/pdf"
+            )
+            
+            with get_db() as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO quotations 
+                    (po_number, creator_id, customer_name, project_name, attention_person, attention_email, attention_phone, status, issue_date, validity, lead_time, payment_term, terms_conditions, subtotal, discount, tax_type, tax_rate, tax_amount, grand_total, currency_unit, exchange_rate, items_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'SUBMITTED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (quotation_auto_gen, current_user["id"], client_company, project_title, attn_person, attn_email, attn_phone, str(issue_date), validity_bound, lead_time_frame, payment_terms_desc, terms_and_cond, global_subtotal_calculated, global_discount_input, tax_type_selection, global_tax_pct, calculated_tax, calculated_grand_total, currency_selection, exchange_rate, json.dumps(st.session_state.working_items)))
+                conn.commit()
+                
+        except Exception as pdf_err:
+            st.error(f"Engine compilation fault isolated: {pdf_err}")
