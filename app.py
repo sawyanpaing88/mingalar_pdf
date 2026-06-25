@@ -910,7 +910,7 @@ elif page_selection == "➕ Build New Quotation Module":
                 .header-container {{ 
                     text-align: center; 
                     max-height: 1.6in; 
-                    overflow: hidden; 
+                    overflow: fixed; 
                     margin-bottom: 10px;
                 }}    
                 .header-logo {{
