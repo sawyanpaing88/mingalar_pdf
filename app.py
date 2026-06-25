@@ -148,7 +148,7 @@ elif page_selection == "🏠 Dashboard Console":
         st.info("No documents compiled yet.")
 
 # ==========================================
-# ➕ ITEMIZATION MODULE (RESTORED OLD TREE UI)
+# ➕ ITEMIZATION MODULE (RESTORED OLD TREE UI + TABLE & PS/MS)
 # ==========================================
 elif page_selection == "➕ Build New Quotation Module":
     st.header("➕ Document Generation Sandbox")
@@ -242,6 +242,22 @@ elif page_selection == "➕ Build New Quotation Module":
         
     st.session_state.structure_blocks = updated_blocks
 
+    # --- PS & MS SPECIAL INPUT METRICS BLOCK ---
+    st.markdown("### 💼 Service Level Custom Integrations (PS & MS Inputs)")
+    ps_col1, ps_col2, ps_col3 = st.columns([4, 4, 4])
+    with ps_col1:
+        ps_base = st.number_input("Professional Services (PS) Base Cost (USD)", min_value=0.0, value=0.0, step=100.0)
+    with ps_col2:
+        ps_margin = st.number_input("Professional Services (PS) Margin %", min_value=0.0, max_value=99.0, value=15.0)
+    with ps_col3:
+        ms_base = st.number_input("Managed Services (MS) Annual Base Cost (USD)", min_value=0.0, value=0.0, step=100.0)
+    
+    ms_margin = st.sidebar.number_input("Managed Services (MS) Margin %", min_value=0.0, max_value=99.0, value=15.0)
+
+    # Calculate Service Block Elements
+    ps_final = (ps_base / (1.0 - ps_margin / 100.0)) if ps_margin < 100 and ps_base > 0 else ps_base
+    ms_final = (ms_base / (1.0 - ms_margin / 100.0)) if ms_margin < 100 and ms_base > 0 else ms_base
+
     # --- TAX CONFIGURATIONS ---
     st.sidebar.markdown("### 🏛 Tax Configuration Options")
     tax_options_chosen = st.sidebar.multiselect("Select Tax Frameworks to Apply", ["Commercial Tax", "Withholding Tax (WHT)"], default=["Commercial Tax"])
@@ -249,31 +265,31 @@ elif page_selection == "➕ Build New Quotation Module":
     comm_tax_pct = st.sidebar.number_input("Commercial Tax (%)", min_value=0.0, value=5.0) if "Commercial Tax" in tax_options_chosen else 0.0
     wht_tax_pct = st.sidebar.number_input("Withholding Tax (%)", min_value=0.0, value=2.0) if "Withholding Tax (WHT)" in tax_options_chosen else 0.0
 
-    # Calculate Totals Matrix
+    # Calculate Totals & HTML Generation
     gross_subtotal = 0.0
     table_rows_html = ""
+    flat_preview_records = []
 
     for b_idx, block in enumerate(st.session_state.structure_blocks):
         p_num = b_idx + 1
-        # Divider Line
         table_rows_html += f'''
         <tr style="background-color: #f8fafc; font-weight: 600; border-top: 1px solid #e2e8f0;">
             <td style="text-align: center; padding: 8px;">{p_num}</td>
             <td colspan="5" style="padding: 8px; color: #1e293b;">{block["title"]}</td>
         </tr>
         '''
+        flat_preview_records.append({"No": str(p_num), "Part Number": "--- HEADING ---", "Description/Specifications": block["title"], "Qty": 0, "Unit Price": 0.0, "Total Price": 0.0})
+        
         for s_idx, sub in enumerate(block["subs"]):
             s_num = f"{p_num}.{s_idx + 1}"
             raw_p = float(sub["price"])
             qty = int(sub["qty"])
             margin_factor = float(sub["margin"]) / 100.0
             
-            # Unit Calculation applying Margin Multipliers
             selling_unit_price = raw_p / (1.0 - margin_factor) if margin_factor < 1.0 else raw_p
             calculated_total = (selling_unit_price * qty) * conversion_multiplier
             gross_subtotal += calculated_total
             
-            # FOC Detection Flag Injection
             if raw_p == 0.0:
                 unit_str = '<span style="color:#059669; font-weight:bold; background:#ecfdf5; padding:2px 5px; border-radius:3px;">FOC</span>'
                 total_str = '<span style="color:#059669; font-weight:bold; background:#ecfdf5; padding:2px 5px; border-radius:3px;">FOC</span>'
@@ -291,6 +307,46 @@ elif page_selection == "➕ Build New Quotation Module":
                 <td style="text-align: right; padding: 8px; font-weight: 600;">{total_str}</td>
             </tr>
             '''
+            flat_preview_records.append({
+                "No": s_num, "Part Number": sub["part"], "Description/Specifications": sub["desc"],
+                "Qty": qty, "Unit Price": round(selling_unit_price * conversion_multiplier, 2), "Total Price": round(calculated_total, 2)
+            })
+
+    # Append custom PS / MS elements to calculation logic and HTML if specified
+    if ps_base > 0:
+        ps_total = ps_final * conversion_multiplier
+        gross_subtotal += ps_total
+        table_rows_html += f'''
+        <tr style="background-color: #fafafa;">
+            <td style="text-align: center; padding: 8px;">PS</td>
+            <td style="font-family: monospace; padding: 8px;">ARK-PS-SRV</td>
+            <td style="padding: 8px; font-style: italic;">Professional Integration & Engineering Deployment Services</td>
+            <td style="text-align: center; padding: 8px;">1</td>
+            <td style="text-align: right; padding: 8px;">{currency_symbol}{ps_total:,.2f}</td>
+            <td style="text-align: right; padding: 8px; font-weight: 600;">{currency_symbol}{ps_total:,.2f}</td>
+        </tr>
+        '''
+        flat_preview_records.append({"No": "PS", "Part Number": "ARK-PS-SRV", "Description/Specifications": "Professional Services", "Qty": 1, "Unit Price": round(ps_total, 2), "Total Price": round(ps_total, 2)})
+
+    if ms_base > 0:
+        ms_total = ms_final * conversion_multiplier
+        gross_subtotal += ms_total
+        table_rows_html += f'''
+        <tr style="background-color: #fafafa;">
+            <td style="text-align: center; padding: 8px;">MS</td>
+            <td style="font-family: monospace; padding: 8px;">ARK-MS-SRV</td>
+            <td style="padding: 8px; font-style: italic;">Managed Services Operational Service SLA Support Line</td>
+            <td style="text-align: center; padding: 8px;">1</td>
+            <td style="text-align: right; padding: 8px;">{currency_symbol}{ms_total:,.2f}</td>
+            <td style="text-align: right; padding: 8px; font-weight: 600;">{currency_symbol}{ms_total:,.2f}</td>
+        </tr>
+        '''
+        flat_preview_records.append({"No": "MS", "Part Number": "ARK-MS-SRV", "Description/Specifications": "Managed Services", "Qty": 1, "Unit Price": round(ms_total, 2), "Total Price": round(ms_total, 2)})
+
+    # --- LIVE DATA TABLE PREVIEW ---
+    st.markdown("### 📊 Synchronized Live Data Table Preview")
+    if flat_preview_records:
+        st.dataframe(pd.DataFrame(flat_preview_records), use_container_width=True)
 
     calculated_comm_tax = gross_subtotal * (comm_tax_pct / 100.0)
     calculated_wht_tax = gross_subtotal * (wht_tax_pct / 100.0)
