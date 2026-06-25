@@ -41,6 +41,10 @@ def init_db():
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL,
+                name TEXT DEFAULT '',
+                designation TEXT DEFAULT '',
+                phone TEXT DEFAULT '',
+                signature_b64 TEXT DEFAULT '',
                 is_verified INTEGER DEFAULT 0,
                 verification_code TEXT
             )
@@ -73,7 +77,9 @@ def init_db():
                 terms_conditions TEXT,
                 subtotal REAL,
                 discount REAL,
-                tax REAL,
+                tax_type TEXT DEFAULT 'Commercial Tax',
+                tax_rate REAL DEFAULT 5.0,
+                tax_amount REAL DEFAULT 0.0,
                 grand_total REAL,
                 currency_unit TEXT,
                 exchange_rate REAL,
@@ -82,18 +88,27 @@ def init_db():
             )
         """)
         
+        # Database schema patching helpers
         cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(users)")
+        u_cols = [c[1] for c in cursor.fetchall()]
+        for col, col_type in [("name", "TEXT DEFAULT ''"), ("designation", "TEXT DEFAULT ''"), ("phone", "TEXT DEFAULT ''"), ("signature_b64", "TEXT DEFAULT ''")]:
+            if col not in u_cols:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
+                
         cursor.execute("PRAGMA table_info(quotations)")
-        columns = [column[1] for column in cursor.fetchall()]
-        if "currency_unit" not in columns:
-            conn.execute("ALTER TABLE quotations ADD COLUMN currency_unit TEXT DEFAULT 'USD'")
-        if "exchange_rate" not in columns:
-            conn.execute("ALTER TABLE quotations ADD COLUMN exchange_rate REAL DEFAULT 1.0")
+        q_cols = [c[1] for c in cursor.fetchall()]
+        if "tax_type" not in q_cols:
+            conn.execute("ALTER TABLE quotations ADD COLUMN tax_type TEXT DEFAULT 'Commercial Tax'")
+        if "tax_rate" not in q_cols:
+            conn.execute("ALTER TABLE quotations ADD COLUMN tax_rate REAL DEFAULT 5.0")
+        if "tax_amount" not in q_cols:
+            conn.execute("ALTER TABLE quotations ADD COLUMN tax_amount REAL DEFAULT 0.0")
 
         admin_exists = conn.execute("SELECT 1 FROM users WHERE LOWER(email)='admin@arktechsolutions.net'").fetchone()
         if not admin_exists:
             pwd_hash = hashlib.sha256("ArkAdmin2026!".encode()).hexdigest()
-            conn.execute("INSERT INTO users (email, password_hash, role, is_verified) VALUES (?, ?, ?, 1)",
+            conn.execute("INSERT INTO users (email, password_hash, role, is_verified, name, designation) VALUES (?, ?, ?, 1, 'System Administrator', 'Infrastructure Root')",
                          ("admin@arktechsolutions.net", pwd_hash, "Admin"))
         conn.commit()
 
@@ -164,7 +179,7 @@ def parse_uploaded_document(df_raw):
             "No": row_no,
             "is_sub": is_sub_row,
             "parent_idx": p_idx,
-            "Part Number/Model": part_no if is_sub_row else "",
+            "Part Number": part_no if is_sub_row else "",
             "Description": desc_val,
             "Qty": qty_val,
             "Unit Price": price_val,
@@ -207,7 +222,7 @@ def parse_pdf_document(uploaded_file):
                         "No": f"1.{idx}",
                         "is_sub": True,
                         "parent_idx": "1",
-                        "Part Number/Model": part_no,
+                        "Part Number": part_no,
                         "Description": desc_val,
                         "Qty": qty_val if qty_val > 0 else 1,
                         "Unit Price": price_val if price_val > 0 else 100.0,
@@ -217,7 +232,7 @@ def parse_pdf_document(uploaded_file):
                     idx += 1
         if structured_items:
             structured_items.insert(0, {
-                "No": "1", "is_sub": False, "parent_idx": "1", "Part Number/Model": "",
+                "No": "1", "is_sub": False, "parent_idx": "1", "Part Number": "",
                 "Description": "Imported PDF Bill of Materials Block", "Qty": 0, "Unit Price": 0.0, "Margin": 0.0, "Total Price": 0.0
             })
     except Exception as e:
@@ -244,7 +259,15 @@ if not st.session_state.user:
                     if res["is_verified"] == 0:
                         st.error("Account verification code pending clearance.")
                     else:
-                        st.session_state.user = {"id": res["id"], "email": res["email"], "role": res["role"]}
+                        st.session_state.user = {
+                            "id": res["id"], 
+                            "email": res["email"], 
+                            "role": res["role"],
+                            "name": res["name"],
+                            "designation": res["designation"],
+                            "phone": res["phone"],
+                            "signature_b64": res["signature_b64"]
+                        }
                         st.success("Access Granted! Loading your workspace...")
                         st.rerun()
                 else:
@@ -284,7 +307,17 @@ if not st.session_state.user:
                     st.error("Code rejected.")
     st.stop()
 
-current_user = st.session_state.user
+# Sync current user metadata from DB
+with get_db() as conn:
+    db_u = conn.execute("SELECT * FROM users WHERE id=?", (st.session_state.user["id"],)).fetchone()
+    if db_u:
+        current_user = {
+            "id": db_u["id"], "email": db_u["email"], "role": db_u["role"],
+            "name": db_u["name"], "designation": db_u["designation"],
+            "phone": db_u["phone"], "signature_b64": db_u["signature_b64"]
+        }
+        st.session_state.user = current_user
+
 st.sidebar.markdown(f"**Authenticated Entity:** `{current_user['email']}`")
 st.sidebar.markdown(f"**Functional Domain Clearance:** `{current_user['role']}`")
 if st.sidebar.button("Logout Session Log"):
@@ -293,7 +326,7 @@ if st.sidebar.button("Logout Session Log"):
     st.rerun()
 
 # Navigation Router
-nav_options = ["🏠 Dashboard Console", "➕ Build New Quotation Module"]
+nav_options = ["🏠 Dashboard Console", "➕ Build New Quotation Module", "👤 User Profile Management"]
 if current_user["role"] == "Account Director":
     nav_options.append("👥 Manage Assigned Account Teams")
 elif current_user["role"] == "Admin":
@@ -301,23 +334,57 @@ elif current_user["role"] == "Admin":
 page_selection = st.sidebar.radio("Navigation Directives", nav_options)
 
 # ==========================================
+# 👤 USER PROFILE MANAGEMENT
+# ==========================================
+if page_selection == "👤 User Profile Management":
+    st.header("👤 User Account Profile Configuration")
+    st.write("Complete your corporate identity to populate quote documents automatically.")
+    
+    prof_name = st.text_input("Full Professional Name", current_user["name"])
+    prof_desig = st.text_input("Corporate Designation / Title", current_user["designation"])
+    prof_phone = st.text_input("Direct Phone/Mobile Contact Line", current_user["phone"])
+    
+    st.markdown("#### 🖋️ Corporate Authorization Signature")
+    if current_user["signature_b64"]:
+        st.markdown("**Active Signature File Detected:**")
+        st.markdown(f'<img src="{current_user["signature_b64"]}" style="max-height: 80px; border: 1px solid #cbd5e0; padding: 4px; background: white;">', unsafe_allow_html=True)
+    
+    uploaded_sig = st.file_uploader("Upload New Signature Image File (PNG/JPG)", type=["png", "jpg", "jpeg"])
+    
+    if st.button("💾 Persist Profile Changes"):
+        sig_payload = current_user["signature_b64"]
+        if uploaded_sig is not None:
+            sig_bytes = uploaded_sig.getvalue()
+            encoded_sig = base64.b64encode(sig_bytes).decode('utf-8')
+            sig_payload = f"data:{uploaded_sig.type};base64,{encoded_sig}"
+            
+        with get_db() as conn:
+            conn.execute("""
+                UPDATE users SET name=?, designation=?, phone=?, signature_b64=? WHERE id=?
+            """, (prof_name, prof_desig, prof_phone, sig_payload, current_user["id"]))
+            conn.commit()
+        st.success("Profile records saved successfully.")
+        st.rerun()
+
+# ==========================================
 # 🏠 DASHBOARD ENGINE
 # ==========================================
-if page_selection == "🏠 Dashboard Console":
+elif page_selection == "🏠 Dashboard Console":
     st.header(f"📊 Activity Metrics Control Dashboard - {current_user['role']}")
     quotes = []
     
     with get_db() as conn:
         if current_user["role"] == "Account Manager":
-            quotes = conn.execute("SELECT * FROM quotations WHERE creator_id=?", (current_user["id"],)).fetchall()
+            quotes = conn.execute("SELECT q.*, u.name as creator_name, u.designation as creator_desig, u.email as creator_email, u.phone as creator_phone, u.signature_b64 as creator_sig FROM quotations q JOIN users u ON q.creator_id = u.id WHERE q.creator_id=?", (current_user["id"],)).fetchall()
         elif current_user["role"] == "Account Director":
             quotes = conn.execute("""
-                SELECT q.* FROM quotations q 
+                SELECT q.*, u.name as creator_name, u.designation as creator_desig, u.email as creator_email, u.phone as creator_phone, u.signature_b64 as creator_sig FROM quotations q 
+                JOIN users u ON q.creator_id = u.id
                 WHERE q.creator_id = ? 
                 OR q.creator_id IN (SELECT manager_id FROM team_mappings WHERE director_id=? AND status='ACCEPTED')
             """, (current_user["id"], current_user["id"])).fetchall()
         elif current_user["role"] in ["Top Management", "Admin"]:
-            quotes = conn.execute("SELECT q.*, u.email as creator_email FROM quotations q JOIN users u ON q.creator_id = u.id").fetchall()
+            quotes = conn.execute("SELECT q.*, u.name as creator_name, u.designation as creator_desig, u.email as creator_email, u.phone as creator_phone, u.signature_b64 as creator_sig FROM quotations q JOIN users u ON q.creator_id = u.id").fetchall()
 
     df_quotes = pd.DataFrame([dict(q) for q in quotes]) if quotes else pd.DataFrame()
     
@@ -382,11 +449,12 @@ if page_selection == "🏠 Dashboard Console":
                             
                     st.write(f"**Attention Party Contact:** {row['attention_person']} ({row['attention_email']})")
                     st.write(f"**Valid Frame:** {row['validity']} | **Payment Terms:** {row['payment_term']}")
+                    st.write(f"**Account Manager Owner:** {row['creator_name']} ({row['creator_desig']})")
                     
                     try:
                         items_data = json.loads(row['items_json'])
                         df_items = pd.DataFrame(items_data)
-                        display_cols = ["No", "Part Number/Model", "Description", "Qty", "Unit Price", "Margin", "Total Price"]
+                        display_cols = ["No", "Part Number", "Description", "Qty", "Unit Price", "Margin", "Total Price"]
                         for col in display_cols:
                             if col not in df_items.columns:
                                 df_items[col] = ""
@@ -442,12 +510,13 @@ elif page_selection == "➕ Build New Quotation Module":
     exchange_rate = st.sidebar.number_input("Commercial Exchange Rate Value (1 USD to MMK)", min_value=1.0, value=3250.0, step=10.0)
     
     currency_symbol = "USD " if currency_selection == "USD" else "MMK "
+    # Note: conversion_multiplier is intentionally ONLY applied during PDF formatting and calculated layout structures.
     conversion_multiplier = exchange_rate if currency_selection == "MMK" else 1.0
     
     st.sidebar.markdown("### 📋 System Template")
     sample_df = pd.DataFrame({
         "No": ["1", "1.1", "1.2", "2"],
-        "Part Number/Model": ["", "C9300-48TX-E", "STACK-M-50CM", ""],
+        "Part Number": ["", "C9300-48TX-E", "STACK-M-50CM", ""],
         "Description": ["Cisco Core Router Stack Frame", "Catalyst 9300 48-port Data Only", "Cisco Catalyst 9300 Stack Cable 50CM", "ARK Professional Services Division"],
         "Qty": [0, 1, 1, 0],
         "Unit Price": [0.0, 4500.00, 250.00, 0.0]
@@ -505,9 +574,9 @@ elif page_selection == "➕ Build New Quotation Module":
             st.session_state.working_items = items_list
         else:
             st.session_state.working_items = [
-                {"No": "1", "is_sub": False, "parent_idx": "1", "Part Number/Model": "", "Description": "Cisco Routing Core Platform Matrix", "Qty": 0, "Unit Price": 4500.0, "Margin": 0.0, "Total Price": 0.0},
-                {"No": "1.1", "is_sub": True, "parent_idx": "1", "Part Number/Model": "C9300-48TX-E", "Description": "Catalyst 9300 48-port Data Only Network Essentials", "Qty": 1, "Unit Price": 4500.0, "Margin": 10.0, "Total Price": 0.0},
-                {"No": "1.2", "is_sub": True, "parent_idx": "1", "Part Number/Model": "STACK-M-50CM", "Description": "Cisco Catalyst 9300 Stack Cable 50CM", "Qty": 1, "Unit Price": 250.0, "Margin": 10.0, "Total Price": 0.0}
+                {"No": "1", "is_sub": False, "parent_idx": "1", "Part Number": "", "Description": "Cisco Routing Core Platform Matrix", "Qty": 0, "Unit Price": 4500.0, "Margin": 0.0, "Total Price": 0.0},
+                {"No": "1.1", "is_sub": True, "parent_idx": "1", "Part Number": "C9300-48TX-E", "Description": "Catalyst 9300 48-port Data Only Network Essentials", "Qty": 1, "Unit Price": 4500.0, "Margin": 10.0, "Total Price": 0.0},
+                {"No": "1.2", "is_sub": True, "parent_idx": "1", "Part Number": "STACK-M-50CM", "Description": "Cisco Catalyst 9300 Stack Cable 50CM", "Qty": 1, "Unit Price": 250.0, "Margin": 10.0, "Total Price": 0.0}
             ]
 
     st.markdown("#### ⚡ Global Commercial Adjustments")
@@ -523,23 +592,25 @@ elif page_selection == "➕ Build New Quotation Module":
             st.success(f"Applied a uniform {global_margin_input}% margin setting across all sub-portfolio entries.")
             st.rerun()
 
-    # --- LIVE CALCULATION PIPELINE ---
+    # --- LIVE CALCULATION PIPELINE (Isolated From Live Conversion Alterations) ---
     for item in st.session_state.working_items:
         if not item.get("is_sub", False):
-            item["Part Number/Model"] = ""
+            item["Part Number"] = ""
             item["Qty"] = None
             item["Unit Price"] = None
             item["Margin"] = None
             item["Total Price"] = None
         else:
             qty = float(item.get("Qty") or 0)
-            u_p = float(item.get("Unit Price") or 0.0)
+            u_p = float(item.get("Unit Price") or 0.0) # Entered Base Unit Price stays preserved here
             m_pct = float(item.get("Margin") or 0.0) / 100.0
             final_unit_price = u_p / (1 - m_pct) if m_pct < 1.0 else u_p
             item["Calculated Unit Price Base"] = round(final_unit_price, 2)
-            item["Total Price"] = round((final_unit_price * qty), 2)
+            
+            # Currency conversions are projected ONLY into the row total calculation in real time
+            item["Total Price"] = round((final_unit_price * qty) * conversion_multiplier, 2)
 
-    blueprint_columns = ["No", "Part Number/Model", "Description", "Qty", "Unit Price", "Margin", "Total Price"]
+    blueprint_columns = ["No", "Part Number", "Description", "Qty", "Unit Price", "Margin", "Total Price"]
     
     if st.session_state.working_items:
         df_display = pd.DataFrame(st.session_state.working_items)
@@ -549,8 +620,6 @@ elif page_selection == "➕ Build New Quotation Module":
     else:
         df_display = pd.DataFrame(columns=blueprint_columns)
 
-    st.info("💡 **ARK Architecture Rule:** Main rows (e.g., 1, 2) are pure text dividers. Add system units, metrics, and pricing components within Sub-Rows (e.g., 1.1, 1.2).")
-
     edited_df = st.data_editor(
         df_display[blueprint_columns],
         num_rows="dynamic",
@@ -558,12 +627,12 @@ elif page_selection == "➕ Build New Quotation Module":
         key="quotation_data_grid",
         column_config={
             "No": st.column_config.TextColumn("No", width="small"),
-            "Part Number/Model": st.column_config.TextColumn("Part Number/Model"),
+            "Part Number": st.column_config.TextColumn("Part Number", width="medium"),
             "Description": st.column_config.TextColumn("Item Description Specifications", width="large"),
-            "Qty": st.column_config.NumberColumn("Qty", min_value=0),
-            "Unit Price": st.column_config.NumberColumn("Unit Price (Base Entering Input)", format="$%.2f"),
-            "Margin": st.column_config.NumberColumn("Margin (%)"),
-            "Total Price": st.column_config.NumberColumn("Total Price (Base)", format="$%.2f", disabled=True)
+            "Qty": st.column_config.NumberColumn("Qty", min_value=0, width="small"),
+            "Unit Price": st.column_config.NumberColumn("Unit Price (Base)", format="$%.2f", width="medium"),
+            "Margin": st.column_config.NumberColumn("Margin (%)", width="small"),
+            "Total Price": st.column_config.NumberColumn(f"Total Price ({currency_selection})", format="%.2f", disabled=True, width="medium")
         }
     )
 
@@ -599,7 +668,7 @@ elif page_selection == "➕ Build New Quotation Module":
                 "No": row_no, 
                 "is_sub": is_sub_row, 
                 "parent_idx": p_idx,
-                "Part Number/Model": "" if not is_sub_row else (row["Part Number/Model"] or ""),
+                "Part Number": "" if not is_sub_row else (row["Part Number"] or ""),
                 "Description": row["Description"] or "Structural Node",
                 "Qty": 0 if not is_sub_row else int(row.get("Qty") or 0),
                 "Unit Price": 0.0 if not is_sub_row else float(row.get("Unit Price") or 0.0),
@@ -620,7 +689,7 @@ elif page_selection == "➕ Build New Quotation Module":
             next_no = str(max(main_rows) + 1 if main_rows else 1)
             st.session_state.working_items.append({
                 "No": next_no, "is_sub": False, "parent_idx": next_no, 
-                "Part Number/Model": "", "Description": "NEW STRUCTURAL BLOCK HEADER", 
+                "Part Number": "", "Description": "NEW STRUCTURAL BLOCK HEADER", 
                 "Qty": None, "Unit Price": None, "Margin": None, "Total Price": None
             })
             st.rerun()
@@ -632,7 +701,7 @@ elif page_selection == "➕ Build New Quotation Module":
                 siblings = [item for item in st.session_state.working_items if item.get("is_sub", False) and item.get("parent_idx") == p_idx]
                 st.session_state.working_items.append({
                     "No": f"{p_idx}.{len(siblings) + 1}", "is_sub": True, "parent_idx": p_idx, 
-                    "Part Number/Model": "NEW-ITEM", "Description": "Nested equipment asset line specifications", 
+                    "Part Number": "NEW-ITEM", "Description": "Nested equipment asset line specifications", 
                     "Qty": 1, "Unit Price": 0.0, "Margin": float(global_margin_input), "Total Price": 0.0
                 })
                 st.rerun()
@@ -646,46 +715,47 @@ elif page_selection == "➕ Build New Quotation Module":
         ms_desc = st.text_area("Managed Service Description", "ARK Premium 24/7 Monitoring")
         ms_price_usd = st.number_input("Managed Service (USD)", min_value=0.0, value=0.0)
 
-    # --- CALCULATION CONVERSION MATRIX FOR PDF ENGINE OUTPUT ONLY ---
-    item_subtotal_base = sum([float(item.get("Total Price") or 0.0) for item in st.session_state.working_items if item.get("Total Price") is not None])
-    global_subtotal_calculated = (item_subtotal_base + ps_price_usd + ms_price_usd) * conversion_multiplier
+    # --- SIDEBAR TAX CONFIGURATION SELECTION MAPPING ---
+    st.sidebar.markdown("### 🏛️ Tax Strategies")
+    tax_type_selection = st.sidebar.selectbox("Tax Strategy Strategy", ["Commercial Tax", "Withholding Tax (WHT)"])
+    global_tax_pct = st.sidebar.number_input("Tax Factor (%)", min_value=0.0, value=5.0 if tax_type_selection == "Commercial Tax" else 2.0)
+
+    # Calculate subtotal using totals already containing conversion values
+    item_subtotal_rendered = sum([float(item.get("Total Price") or 0.0) for item in st.session_state.working_items if item.get("Total Price") is not None])
+    global_subtotal_calculated = item_subtotal_rendered + ((ps_price_usd + ms_price_usd) * conversion_multiplier)
     
     global_discount_input = st.sidebar.number_input(f"Discount ({currency_selection})", min_value=0.0, value=0.0)
     subtotal_after_disc = max(0.0, global_subtotal_calculated - global_discount_input)
-    global_tax_pct = st.sidebar.number_input("Tax (%)", min_value=0.0, value=5.0)
-    calculated_tax = subtotal_after_disc * (global_tax_pct / 100.0)
-    calculated_grand_total = subtotal_after_disc + calculated_tax
+    
+    if tax_type_selection == "Commercial Tax":
+        calculated_tax = subtotal_after_disc * (global_tax_pct / 100.0)
+        calculated_grand_total = subtotal_after_disc + calculated_tax
+    else:
+        # Withholding Tax strategy subtracts liability from final gross payment obligations
+        calculated_tax = subtotal_after_disc * (global_tax_pct / 100.0)
+        calculated_grand_total = subtotal_after_disc - calculated_tax
     
     st.sidebar.markdown(f"**Gross Subtotal:** {currency_symbol}{global_subtotal_calculated:,.2f}")
-    if global_tax_pct > 0:
-        st.sidebar.markdown(f"**Tax Pool:** {currency_symbol}{calculated_tax:,.2f}")
+    st.sidebar.markdown(f"**{tax_type_selection} ({global_tax_pct}%):** {currency_symbol}{calculated_tax:,.2f}")
     st.sidebar.markdown(f"### **Grand Total:** {currency_symbol}{calculated_grand_total:,.2f}")
 
     action_c1, action_c2 = st.columns(2)
     if action_c1.button("💾 Persist Document Configuration (Save Draft)"):
         with get_db() as conn:
             conn.execute("""
-                INSERT OR REPLACE INTO quotations (po_number, creator_id, customer_name, project_name, attention_person, attention_email, attention_phone, status, issue_date, validity, lead_time, payment_term, terms_conditions, subtotal, discount, tax, grand_total, currency_unit, exchange_rate, items_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (quotation_auto_gen, current_user["id"], client_company, project_title, attn_person, attn_email, attn_phone, str(issue_date), validity_bound, lead_time_frame, payment_terms_desc, terms_and_cond, global_subtotal_calculated, global_discount_input, calculated_tax, calculated_grand_total, currency_selection, exchange_rate, json.dumps(st.session_state.working_items)))
+                INSERT OR REPLACE INTO quotations (po_number, creator_id, customer_name, project_name, attention_person, attention_email, attention_phone, status, issue_date, validity, lead_time, payment_term, terms_conditions, subtotal, discount, tax_type, tax_rate, tax_amount, grand_total, currency_unit, exchange_rate, items_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (quotation_auto_gen, current_user["id"], client_company, project_title, attn_person, attn_email, attn_phone, str(issue_date), validity_bound, lead_time_frame, payment_terms_desc, terms_and_cond, global_subtotal_calculated, global_discount_input, tax_type_selection, global_tax_pct, calculated_tax, calculated_grand_total, currency_selection, exchange_rate, json.dumps(st.session_state.working_items)))
             conn.commit()
         st.success("Draft compiled and archived.")
 
     if action_c2.button("🖨️ Compile Official Corporate PDF Engine Asset"):
         if st.session_state.default_logo_base64 is not None:
-            logo_html = f'<img src="{st.session_state.default_logo_base64}" style="max-height: 85px; max-width: 250px; object-fit: contain;">'
+            logo_html = f'<img src="{st.session_state.default_logo_base64}" style="max-height: 65px; max-width: 220px; object-fit: contain;">'
         else:
-            logo_html = '<h1 style="color:#00a8e8; margin:0 0 5px 0; font-family:\'Helvetica Neue\',Arial; font-size: 24pt; letter-spacing: 0.5px;">ARK PREMIUM SOLUTION</h1>'
+            logo_html = '<h2 style="color:#00a8e8; margin:0; font-family:\'Helvetica Neue\',Arial; font-size: 18pt; font-weight: normal; letter-spacing: 0.5px;">ARK PREMIUM SOLUTION</h2>'
 
-        max_main_no = 0
-        for item in st.session_state.working_items:
-            try:
-                val = int(float(item.get("parent_idx", 0)))
-                if val > max_main_no:
-                    max_main_no = val
-            except: pass
-        if max_main_no == 0:
-            max_main_no = 1
+        max_main_no = max([int(float(item.get("parent_idx", 0))) for item in st.session_state.working_items if str(item.get("parent_idx", "")).isdigit()] + [1])
 
         # --- HTML ROW POPULATION BUILDER ---
         table_rows_html = ""
@@ -694,24 +764,26 @@ elif page_selection == "➕ Build New Quotation Module":
             
             if not is_sub:
                 table_rows_html += f'''
-                <tr style="background-color: #edf2f7; font-weight: bold; border-top: 2px solid #cbd5e0;">
-                    <td style="text-align: center;">{item.get("No", "")}</td>
-                    <td colspan="5" style="padding-left: 10px; color: #1a202c; font-size: 8.5pt; letter-spacing: 0.3px;">
+                <tr style="background-color: #f8fafc; font-weight: 600; border-top: 1px solid #e2e8f0;">
+                    <td style="text-align: center; color: #1e293b; padding: 8px;">{item.get("No", "")}</td>
+                    <td colspan="5" style="padding-left: 10px; color: #1e293b; font-size: 8.5pt; padding: 8px;">
                         {item.get("Description", "Main Section")}
                     </td>
                 </tr>
                 '''
             else:
-                unit_p = (item.get("Calculated Unit Price Base") or 0.0) * conversion_multiplier
-                total_p = (item.get("Total Price") or 0.0) * conversion_multiplier
+                # Execution calculation rendering rules map baseline values directly across conversion targets
+                raw_base_unit = float(item.get("Calculated Unit Price Base") or 0.0)
+                unit_p = raw_base_unit * conversion_multiplier
+                total_p = (raw_base_unit * float(item.get("Qty") or 0)) * conversion_multiplier
                 table_rows_html += f'''
                 <tr style="background-color: #ffffff;">
-                    <td style="text-align: center; color: #718096;">{item.get("No", "")}</td>
-                    <td style="color: #4a5568; font-family: monospace; word-break: break-all;">{item.get("Part Number/Model", "")}</td>
-                    <td style="padding-left: 15px; color: #2d3748; font-style: italic; word-break: break-word;">{item.get("Description", "")}</td>
-                    <td style="text-align: center;">{item.get("Qty", 1)}</td>
-                    <td style="text-align: right; font-weight: 500; color: #4a5568; white-space: nowrap;">{currency_symbol}{unit_p:,.2f}</td>
-                    <td style="text-align: right; font-weight: 600; white-space: nowrap;">{currency_symbol}{total_p:,.2f}</td>
+                    <td style="text-align: center; color: #64748b; padding: 8px;">{item.get("No", "")}</td>
+                    <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">{item.get("Part Number", "")}</td>
+                    <td style="padding-left: 10px; color: #334155; font-style: italic; word-break: break-word; padding: 8px;">{item.get("Description", "")}</td>
+                    <td style="text-align: center; color: #334155; padding: 8px;">{item.get("Qty", 1)}</td>
+                    <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{currency_symbol}{unit_p:,.2f}</td>
+                    <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{currency_symbol}{total_p:,.2f}</td>
                 </tr>
                 '''
 
@@ -720,47 +792,52 @@ elif page_selection == "➕ Build New Quotation Module":
             current_service_index += 1
             ps_total = ps_price_usd * conversion_multiplier
             table_rows_html += f'''
-            <tr style="background-color: #f7fafc; font-weight: 600;">
-                <td style="text-align: center;">{current_service_index}</td>
-                <td style="word-break: break-all;">SRV-ARK-PS</td>
-                <td style="white-space: pre-line; padding-left: 15px; word-break: break-word;">{ps_desc}</td>
-                <td style="text-align: center;">1</td>
-                <td style="text-align: right; color: #4a5568; white-space: nowrap;">{currency_symbol}{ps_total:,.2f}</td>
-                <td style="text-align: right; white-space: nowrap;">{currency_symbol}{ps_total:,.2f}</td>
+            <tr style="background-color: #ffffff;">
+                <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}</td>
+                <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-ARK-PS</td>
+                <td style="white-space: pre-line; padding-left: 10px; color: #334155; padding: 8px; font-style: italic;">{ps_desc}</td>
+                <td style="text-align: center; color: #334155; padding: 8px;">1</td>
+                <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{currency_symbol}{ps_total:,.2f}</td>
+                <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{currency_symbol}{ps_total:,.2f}</td>
             </tr>
             '''
         if ms_price_usd > 0:
             current_service_index += 1
             ms_total = ms_price_usd * conversion_multiplier
             table_rows_html += f'''
-            <tr style="background-color: #f7fafc; font-weight: 600;">
-                <td style="text-align: center;">{current_service_index}</td>
-                <td style="word-break: break-all;">SRV-ARK-MS</td>
-                <td style="white-space: pre-line; padding-left: 15px; word-break: break-word;">{ms_desc}</td>
-                <td style="text-align: center;">1</td>
-                <td style="text-align: right; color: #4a5568; white-space: nowrap;">{currency_symbol}{ms_total:,.2f}</td>
-                <td style="text-align: right; white-space: nowrap;">{currency_symbol}{ms_total:,.2f}</td>
+            <tr style="background-color: #ffffff;">
+                <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}</td>
+                <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-ARK-MS</td>
+                <td style="white-space: pre-line; padding-left: 10px; color: #334155; padding: 8px; font-style: italic;">{ms_desc}</td>
+                <td style="text-align: center; color: #334155; padding: 8px;">1</td>
+                <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{currency_symbol}{ms_total:,.2f}</td>
+                <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{currency_symbol}{ms_total:,.2f}</td>
             </tr>
             '''
 
-        # Conditional discount row architecture
         discount_row_markup = ""
         if global_discount_input > 0:
             discount_row_markup = f'''
             <tr>
-                <td style="color: #4a5568;">Discount Applied:</td>
-                <td style="text-align: right; font-weight: 600; color: #e53e3e; white-space: nowrap;">-{currency_symbol}{global_discount_input:,.2f}</td>
+                <td style="color: #475569; padding: 4px 0;">Discount Applied:</td>
+                <td style="text-align: right; font-weight: 600; color: #b91c1c; white-space: nowrap; padding: 4px 0;">-{currency_symbol}{global_discount_input:,.2f}</td>
             </tr>
             '''
 
-        tax_row_markup = ""
-        if global_tax_pct > 0:
-            tax_row_markup = f'''
-            <tr>
-                <td style="color: #4a5568;">Tax Configuration ({global_tax_pct}%):</td>
-                <td style="text-align: right; font-weight: 600; white-space: nowrap;">{currency_symbol}{calculated_tax:,.2f}</td>
-            </tr>
-            '''
+        tax_label_action = "Tax Liability ADD" if tax_type_selection == "Commercial Tax" else "Tax Retention WHT SUBTRACT"
+        tax_row_markup = f'''
+        <tr>
+            <td style="color: #475569; padding: 4px 0;">{tax_type_selection} ({global_tax_pct}%):</td>
+            <td style="text-align: right; font-weight: 600; color: #475569; white-space: nowrap; padding: 4px 0;">{currency_symbol}{calculated_tax:,.2f}</td>
+        </tr>
+        '''
+
+        # Account Manager Signature block generation rules
+        sig_img_markup = ""
+        if current_user["signature_b64"]:
+            sig_img_markup = f'<img src="{current_user["signature_b64"]}" style="max-height: 55px; margin-top: 5px; margin-bottom: 2px; display: block;">'
+        else:
+            sig_img_markup = '<div style="height: 45px; margin-top: 5px; color: #cbd5e1; font-style: italic; font-size: 8pt;">Signature Signature Pending</div>'
 
         html_document = f"""
         <!DOCTYPE html>
@@ -770,65 +847,66 @@ elif page_selection == "➕ Build New Quotation Module":
             <style>
                 @page {{
                     size: A4;
-                    margin: 20mm 15mm 25mm 15mm;
+                    margin: 15mm 15mm 20mm 15mm;
                     @bottom-right {{
                         content: "Page " counter(page) " of " counter(pages);
                         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
                         font-size: 8pt;
-                        color: #718096;
+                        color: #64748b;
                     }}
                 }}
                 body {{
                     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-                    color: #2d3748;
-                    font-size: 9.5pt;
-                    line-height: 1.6;
+                    color: #1e293b;
+                    font-size: 9pt;
+                    line-height: 1.5;
                     width: 100%;
                 }}
                 .header-container {{
                     text-align: center;
-                    margin-bottom: 25px;
+                    margin-bottom: 15px;
                     width: 100%;
                 }}
                 .header-logo {{
-                    margin-bottom: 12px;
+                    margin-bottom: 8px;
                 }}
                 .header-address {{
-                    font-size: 8.5pt;
-                    color: #4a5568;
-                    line-height: 1.5;
+                    font-size: 8pt;
+                    color: #475569;
+                    line-height: 1.4;
                 }}
                 .company-group-title {{
                     font-weight: bold;
                     color: #00a8e8;
-                    font-size: 13pt;
-                    letter-spacing: 0.5px;
-                    margin-bottom: 4px;
+                    font-size: 11pt;
+                    letter-spacing: 0.3px;
+                    margin-bottom: 2px;
                 }}
-                .divider {{ border-bottom: 3px solid #00a8e8; margin-top: 5px; margin-bottom: 25px; }}
-                .doc-title {{ font-size: 24pt; font-weight: bold; color: #1a202c; letter-spacing: -0.5px; margin: 0; }}
+                .divider {{ border-bottom: 2px solid #00a8e8; margin-top: 5px; margin-bottom: 15px; }}
+                .doc-title {{ font-size: 18pt; font-weight: normal; color: #0f172a; margin: 0; text-align: left; }}
                 
-                .meta-table {{ width: 100%; margin-bottom: 20px; table-layout: fixed; border-collapse: collapse; }}
+                .meta-table {{ width: 100%; margin-bottom: 15px; table-layout: fixed; border-collapse: collapse; }}
                 .meta-table td {{ vertical-align: top; border: none; padding: 0; width: 50%; }}
                 
-                .card-box {{ background-color: #f7fafc; border: 1px solid #e2e8f0; border-radius: 5px; padding: 12px; height: 135px; min-height: 135px; max-height: 135px; box-sizing: border-box; margin-right: 6px; display: block; overflow: hidden; font-size: 9pt; }}
-                .card-box-right {{ background-color: #edf2f7; border: 1px solid #cbd5e0; border-radius: 5px; padding: 12px; height: 135px; min-height: 135px; max-height: 135px; box-sizing: border-box; margin-left: 6px; display: block; overflow: hidden; font-size: 9pt; }}
-                .card-title {{ font-size: 8pt; font-weight: bold; color: #718096; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }}
+                .card-box {{ background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px; height: 110px; min-height: 110px; box-sizing: border-box; margin-right: 5px; font-size: 8.5pt; }}
+                .card-box-right {{ background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px; height: 110px; min-height: 110px; box-sizing: border-box; margin-left: 5px; font-size: 8.5pt; }}
+                .card-title {{ font-size: 7.5pt; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }}
                 
-                .clear {{ clear: both; height: 10px; }}
+                .clear {{ clear: both; height: 5px; }}
                 
-                /* IMPROVED LIQUID LAYOUT WITH EXPLICIT WRAPPING FOR WEASYPRINT */
-                .data-table {{ width: 100%; max-width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px; clear: both; table-layout: auto; }}
-                .data-table th {{ background-color: #0A2540; color: white; font-weight: bold; text-transform: uppercase; font-size: 8.5pt; padding: 10px; text-align: left; }}
-                .data-table td {{ padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 8.5pt; }}
+                /* MILD DARK BLUE HEADER CONFIGURATION */
+                .data-table {{ width: 100%; max-width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; clear: both; table-layout: auto; }}
+                .data-table th {{ background-color: #1e293b; color: white; font-weight: 500; text-transform: uppercase; font-size: 8pt; padding: 8px; text-align: left; letter-spacing: 0.3px; }}
+                .data-table td {{ font-size: 8.5pt; border-bottom: 1px solid #f1f5f9; }}
                 
-                .totals-box {{ float: right; width: 45%; margin-top: 10px; page-break-inside: avoid; }}
-                .totals-table {{ width: 100%; border-collapse: collapse; }}
-                .totals-table td {{ padding: 6px 8px; font-size: 9.5pt; }}
-                .grand-total-tr {{ background-color: #00a8e8; color: white; font-weight: bold; font-size: 11pt; }}
-                .grand-total-tr td {{ padding: 10px 8px; }}
+                .totals-box {{ float: right; width: 40%; margin-top: 5px; page-break-inside: avoid; }}
+                .totals-table {{ width: 100%; border-collapse: collapse; font-size: 8.5pt; }}
+                .grand-total-tr {{ background-color: #00a8e8; color: white; font-weight: bold; font-size: 10pt; }}
+                .grand-total-tr td {{ padding: 8px; }}
                 
-                .footer-terms {{ margin-top: 60px; font-size: 8pt; color: #718096; border-top: 1px solid #e2e8f0; padding-top: 15px; page-break-inside: avoid; clear: both; }}
+                .footer-terms {{ margin-top: 25px; font-size: 8pt; color: #475569; border-top: 1px solid #e2e8f0; padding-top: 10px; page-break-inside: avoid; clear: both; line-height: 1.4; }}
+                .signatory-container {{ margin-top: 25px; width: 100%; page-break-inside: avoid; clear: both; }}
+                .signatory-box {{ width: 220px; float: left; font-size: 8.5pt; color: #1e293b; }}
             </style>
         </head>
         <body>
@@ -852,7 +930,7 @@ elif page_selection == "➕ Build New Quotation Module":
                     <td>
                         <div class="card-box">
                             <div class="card-title">Prepared For</div>
-                            <strong style="font-size: 10pt; color: #1a202c; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{client_company}</strong>
+                            <strong style="font-size: 9.5pt; color: #0f172a; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{client_company}</strong>
                             Attn: {attn_person}<br>
                             Email: {attn_email}<br>
                             Phone: {attn_phone}
@@ -876,8 +954,8 @@ elif page_selection == "➕ Build New Quotation Module":
                 <thead>
                     <tr>
                         <th style="width: 6%; text-align: center;">No</th>
-                        <th style="width: 24%;">Part Number / Identifier</th>
-                        <th style="width: 40%;">Functional Itemization Specifications</th>
+                        <th style="width: 22%;">Part Number</th>
+                        <th style="width: 42%;">Item Description Specifications</th>
                         <th style="width: 5%; text-align: center;">Qty</th>
                         <th style="width: 12%; text-align: right;">Unit Price</th>
                         <th style="width: 13%; text-align: right;">Total Price</th>
@@ -891,8 +969,8 @@ elif page_selection == "➕ Build New Quotation Module":
             <div class="totals-box">
                 <table class="totals-table">
                     <tr>
-                        <td style="color: #4a5568;">Gross Subtotal:</td>
-                        <td style="text-align: right; font-weight: 600; white-space: nowrap;">{currency_symbol}{global_subtotal_calculated:,.2f}</td>
+                        <td style="color: #475569; padding: 4px 0;">Gross Subtotal:</td>
+                        <td style="text-align: right; font-weight: 600; white-space: nowrap; padding: 4px 0;">{currency_symbol}{global_subtotal_calculated:,.2f}</td>
                     </tr>
                     {discount_row_markup}
                     {tax_row_markup}
@@ -906,9 +984,24 @@ elif page_selection == "➕ Build New Quotation Module":
 
             <div class="footer-terms">
                 <strong>Commercial Logistics Terms & Governance Conditions:</strong><br>
-                1. Equipment delivery windows are anticipated at approximately <strong>{lead_time_frame}</strong> following official sign-off.<br>
-                2. Explicit remittance milestones require compliance with: <strong>{payment_terms_desc}</strong>.<br>
-                3. Additional execution framework notes: {terms_and_cond.replace('\n', '<br>')}
+                1. Delivery Lead-Time Windows: Equipment delivery windows are anticipated at approximately <strong>{lead_time_frame}</strong> following official project sign-off matrix rules.<br>
+                2. Explicit Milestone Commitments: All relative monetary settlement routes must maintain strict compliance with: <strong>{payment_terms_desc}</strong>.<br>
+                3. Additional Execution Scope and Framework Matrix Parameters: {terms_and_cond.replace('\n', '<br>')}
+            </div>
+
+            <div class="signatory-container">
+                <div class="signatory-box">
+                    <div style="border-bottom: 1px solid #cbd5e1; padding-bottom: 2px;">
+                        <span style="font-size: 7.5pt; font-weight: bold; color: #64748b; text-transform: uppercase; display: block;">Issued & Authorized By:</span>
+                        {sig_img_markup}
+                    </div>
+                    <div style="margin-top: 4px; font-weight: bold; color: #0f172a;">{current_user["name"] or "Authorized Signatory"}</div>
+                    <div style="color: #475569; font-size: 8pt;">{current_user["designation"] or "Account Operations Manager"}</div>
+                    <div style="color: #64748b; font-size: 7.5pt; margin-top: 1px;">
+                        Email: {current_user["email"]}<br>
+                        Phone: {current_user["phone"] or "N/A"}
+                    </div>
+                </div>
             </div>
         </body>
         </html>
@@ -932,9 +1025,9 @@ elif page_selection == "➕ Build New Quotation Module":
             with get_db() as conn:
                 conn.execute("""
                     INSERT OR REPLACE INTO quotations 
-                    (po_number, creator_id, customer_name, project_name, attention_person, attention_email, attention_phone, status, issue_date, validity, lead_time, payment_term, terms_conditions, subtotal, discount, tax, grand_total, currency_unit, exchange_rate, items_json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'SUBMITTED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (quotation_auto_gen, current_user["id"], client_company, project_title, attn_person, attn_email, attn_phone, str(issue_date), validity_bound, lead_time_frame, payment_terms_desc, terms_and_cond, global_subtotal_calculated, global_discount_input, calculated_tax, calculated_grand_total, currency_selection, exchange_rate, json.dumps(st.session_state.working_items)))
+                    (po_number, creator_id, customer_name, project_name, attention_person, attention_email, attention_phone, status, issue_date, validity, lead_time, payment_term, terms_conditions, subtotal, discount, tax_type, tax_rate, tax_amount, grand_total, currency_unit, exchange_rate, items_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'SUBMITTED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (quotation_auto_gen, current_user["id"], client_company, project_title, attn_person, attn_email, attn_phone, str(issue_date), validity_bound, lead_time_frame, payment_terms_desc, terms_and_cond, global_subtotal_calculated, global_discount_input, tax_type_selection, global_tax_pct, calculated_tax, calculated_grand_total, currency_selection, exchange_rate, json.dumps(st.session_state.working_items)))
                 conn.commit()
                 
         except Exception as pdf_err:
