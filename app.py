@@ -1240,7 +1240,27 @@ elif page_selection == "➕ Build New Quotation Module":
             <div class="clear">
             
             </div>
+<div class="footer-section" style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 20px; page-break-inside: avoid; clear: both;">
+                
+                <div class="signatory-container" style="width: 45%; margin-top: 0;">
+                    <div class="signatory-box" style="width: 100%; margin-left: 0;">
+                        <div style="border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">
+                            <span style="font-size: 7.5pt; font-weight: bold; color: #64748b; text-transform: uppercase; display: block;">Issued & Authorized By:</span>
+                            {sig_img_markup}
+                        </div>
+                        <div style="margin-top: 6px; font-weight: bold; color: #0f172a; font-size: 9.5pt;">{current_user["name"] or "Authorized Signatory"}</div>
+                        <div style="color: #475569; font-size: 8.5pt; font-weight: 500; margin-top: 2px;">{current_user["designation"] or "Account Operations Manager"}</div>
+                        <div style="color: #64748b; font-size: 8pt; margin-top: 4px; line-height: 1.4;">
+                            Email: {current_user["email"]}<br>
+                            Phone: {current_user["phone"] or "N/A"}
+                        </div>
+                    </div>
+                </div>
 
+                {totals_box_html.replace('float: right;', 'float: none; width: 100%;')}
+            </div>
+
+            <div class="clear" style="clear: both;"></div
           <div class="footer-terms">
     <strong>Commercial Logistics Terms & Governance Conditions:</strong><br>
 
