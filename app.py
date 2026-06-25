@@ -949,7 +949,7 @@ elif page_selection == "➕ Build New Quotation Module":
                     <strong>ARK Corporate Office :</strong> 12th floor, Times City(office tower-2), Kamayut, Yangon, Myanmar.<br>
                     <strong>ARK Headquarters Office :</strong> 91, Shwe Taung Kyar 1st Street, Golden Valley 1, Bahan, Yangon, Myanmar.<br>
                     <strong>ARK Thailand Office :</strong> 1, Soi Ramkhamhaeng 118 Yaek 33-3, Saphan Sung 10240, Bangkok, Thailand.<br>
-                    <strong>Tel:</strong> +95 9 445830101
+                    <strong>Website:</strong> www.arktechsolutions.net
                 </div>
             </div>
 
