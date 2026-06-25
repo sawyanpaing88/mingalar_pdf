@@ -891,7 +891,7 @@ elif page_selection == "➕ Build New Quotation Module":
             <style>
                 @page {{
                     size: A4;
-                    margin: 15mm 15mm 20mm 15mm;
+                    margin: 15mm 15mm 0mm 15mm;
                     @bottom-right {{
                         content: "Page " counter(page) " of " counter(pages);
                         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
