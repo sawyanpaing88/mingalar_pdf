@@ -522,12 +522,22 @@ elif page_selection == "➕ Build New Quotation Module":
             final_unit_price = u_p / (1 - m_pct) if m_pct < 1.0 else u_p
             item["Total Price"] = round((final_unit_price * qty) * conversion_multiplier, 2)
 
-    df_display = pd.DataFrame(st.session_state.working_items)
+    # Blueprint definition preventing empty layout crashes
+    target_columns = ["No", "Part Number/Model", "Description", "Qty", "Unit Price", "Margin", "Total Price"]
+    
+    if st.session_state.working_items:
+        df_display = pd.DataFrame(st.session_state.working_items)
+        for col in target_columns:
+            if col not in df_display.columns:
+                df_display[col] = None
+    else:
+        df_display = pd.DataFrame(columns=target_columns)
+
     st.info("💡 **ARK Architecture Rule:** Main rows (e.g., 1, 2) are pure text dividers. Add system units, metrics, and pricing components within Sub-Rows (e.g., 1.1, 1.2).")
 
     # Live Data Editor Workspace Rendering
     edited_df = st.data_editor(
-        df_display[["No", "Part Number/Model", "Description", "Qty", "Unit Price", "Margin", "Total Price"]],
+        df_display[target_columns],
         num_rows="dynamic",
         width="stretch",
         key="quotation_data_grid",
@@ -542,10 +552,9 @@ elif page_selection == "➕ Build New Quotation Module":
         }
     )
 
-    if not edited_df.equals(df_display[["No", "Part Number/Model", "Description", "Qty", "Unit Price", "Margin", "Total Price"]]):
+    if not edited_df.equals(df_display[target_columns]):
         updated_records = []
         for idx, row in edited_df.iterrows():
-            # Safeguard data generation index transitions
             orig_meta = st.session_state.working_items[idx] if idx < len(st.session_state.working_items) else {"is_sub": "." in str(row["No"]), "parent_idx": "1"}
             row_no = str(row["No"] or "")
             is_sub_row = "." in row_no
