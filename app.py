@@ -776,14 +776,19 @@ elif page_selection == "➕ Build New Quotation Module":
                 raw_base_unit = float(item.get("Calculated Unit Price Base") or 0.0)
                 unit_p = raw_base_unit * conversion_multiplier
                 total_p = (raw_base_unit * float(item.get("Qty") or 0)) * conversion_multiplier
+                
+                # Render 0 price value as FOC
+                unit_p_str = "FOC" if unit_p == 0.0 else f"{currency_symbol}{unit_p:,.2f}"
+                total_p_str = "FOC" if total_p == 0.0 else f"{currency_symbol}{total_p:,.2f}"
+                
                 table_rows_html += f'''
                 <tr style="background-color: #ffffff;">
                     <td style="text-align: center; color: #64748b; padding: 8px;">{item.get("No", "")}</td>
                     <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">{item.get("Part Number", "")}</td>
                     <td style="padding-left: 10px; color: #334155; font-style: italic; word-break: break-word; padding: 8px;">{item.get("Description", "")}</td>
                     <td style="text-align: center; color: #334155; padding: 8px;">{item.get("Qty", 1)}</td>
-                    <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{currency_symbol}{unit_p:,.2f}</td>
-                    <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{currency_symbol}{total_p:,.2f}</td>
+                    <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{unit_p_str}</td>
+                    <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{total_p_str}</td>
                 </tr>
                 '''
 
@@ -791,27 +796,29 @@ elif page_selection == "➕ Build New Quotation Module":
         if ps_price_usd > 0:
             current_service_index += 1
             ps_total = ps_price_usd * conversion_multiplier
+            ps_total_str = "FOC" if ps_total == 0.0 else f"{currency_symbol}{ps_total:,.2f}"
             table_rows_html += f'''
             <tr style="background-color: #ffffff;">
                 <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}</td>
                 <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-ARK-PS</td>
                 <td style="white-space: pre-line; padding-left: 10px; color: #334155; padding: 8px; font-style: italic;">{ps_desc}</td>
                 <td style="text-align: center; color: #334155; padding: 8px;">1</td>
-                <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{currency_symbol}{ps_total:,.2f}</td>
-                <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{currency_symbol}{ps_total:,.2f}</td>
+                <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{ps_total_str}</td>
+                <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{ps_total_str}</td>
             </tr>
             '''
         if ms_price_usd > 0:
             current_service_index += 1
             ms_total = ms_price_usd * conversion_multiplier
+            ms_total_str = "FOC" if ms_total == 0.0 else f"{currency_symbol}{ms_total:,.2f}"
             table_rows_html += f'''
             <tr style="background-color: #ffffff;">
                 <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}</td>
                 <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-ARK-MS</td>
                 <td style="white-space: pre-line; padding-left: 10px; color: #334155; padding: 8px; font-style: italic;">{ms_desc}</td>
                 <td style="text-align: center; color: #334155; padding: 8px;">1</td>
-                <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{currency_symbol}{ms_total:,.2f}</td>
-                <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{currency_symbol}{ms_total:,.2f}</td>
+                <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{ms_total_str}</td>
+                <td style="text-align: right; font-weight: 600; color: #1e293b; white-space: nowrap; padding: 8px;">{ms_total_str}</td>
             </tr>
             '''
 
@@ -906,7 +913,7 @@ elif page_selection == "➕ Build New Quotation Module":
                 
                 .footer-terms {{ margin-top: 25px; font-size: 8pt; color: #475569; border-top: 1px solid #e2e8f0; padding-top: 10px; page-break-inside: avoid; clear: both; line-height: 1.4; }}
                 .signatory-container {{ margin-top: 25px; width: 100%; page-break-inside: avoid; clear: both; }}
-                .signatory-box {{ width: 220px; float: left; font-size: 8.5pt; color: #1e293b; }}
+                .signatory-box {{ width: 220px; float: right; font-size: 8.5pt; color: #1e293b; }}
             </style>
         </head>
         <body>
@@ -914,10 +921,10 @@ elif page_selection == "➕ Build New Quotation Module":
                 <div class="header-logo">{logo_html}</div>
                 <div class="header-address">
                     <div class="company-group-title">ARK Premium Solution Limited</div>
-                    <strong>ARK Corporate Office :</strong> 12th floor, Times City(office tower-2), Kamayut, Yangon, Myanmar.<br>
+                    <strong>ARK Corporate Office :</strong> 18th floor, Times City(office tower-2), Kamayut, Yangon, Myanmar.<br>
                     <strong>ARK Headquarters Office :</strong> 91, Shwe Taung Kyar 1st Street, Golden Valley 1, Bahan, Yangon, Myanmar.<br>
                     <strong>ARK Thailand Office :</strong> 1, Soi Ramkhamhaeng 118 Yaek 33-3, Saphan Sung 10240, Bangkok, Thailand.<br>
-                    <strong>Tel:</strong> +95 9 445830101
+                    www.arktechsolutions.net
                 </div>
             </div>
 
@@ -955,7 +962,7 @@ elif page_selection == "➕ Build New Quotation Module":
                     <tr>
                         <th style="width: 6%; text-align: center;">No</th>
                         <th style="width: 22%;">Part Number</th>
-                        <th style="width: 42%;">Item Description Specifications</th>
+                        <th style="width: 42%;">FUNCTIONAL ITEMIZATION /SPECIFICATIONS</th>
                         <th style="width: 5%; text-align: center;">Qty</th>
                         <th style="width: 12%; text-align: right;">Unit Price</th>
                         <th style="width: 13%; text-align: right;">Total Price</th>
@@ -1032,3 +1039,4 @@ elif page_selection == "➕ Build New Quotation Module":
                 
         except Exception as pdf_err:
             st.error(f"Engine compilation fault isolated: {pdf_err}")
+}
