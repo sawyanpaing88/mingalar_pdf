@@ -924,7 +924,7 @@ elif page_selection == "➕ Build New Quotation Module":
 
     if action_c2.button("🖨️ Compile Official Corporate PDF Engine Asset"):
         if st.session_state.default_logo_base64 is not None:
-            logo_html = f'<img src="{st.session_state.default_logo_base64}" style="max-height: 65px; max-width: 220px; object-fit: contain;">'
+            logo_html = f'<img src="{st.session_state.default_logo_base64}" style="max-height: 100px; max-width: 220px; object-fit: contain;">'
         else:
             logo_html = '<h2 style="color:#00a8e8; margin:0; font-family:\'Helvetica Neue\',Arial; font-size: 18pt; font-weight: normal; letter-spacing: 0.5px;">ARK PREMIUM SOLUTION</h2>'
 
