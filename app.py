@@ -26,7 +26,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.mdown("""
+st.markdown("""
 <style>
     :root { --main-color: #00a8e8; }
     .stButton>button { background-color: #00a8e8 !important; color: white !important; font-weight: bold; }
