@@ -21,12 +21,12 @@ from pypdf import PdfReader
 
 # --- PAGE SETUP & THEME INITIALIZATION ---
 st.set_page_config(
-    page_title="ARK Premium Solutions - Quotation Portal", 
+    page_title="Mingalar ICT Solutions - Quotation Portal", 
     page_icon="🌐", 
     layout="wide"
 )
 
-st.markdown("""
+st.mdown("""
 <style>
     :root { --main-color: #00a8e8; }
     .stButton>button { background-color: #00a8e8 !important; color: white !important; font-weight: bold; }
@@ -35,7 +35,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- DATABASE ARCHITECTURE INITIALIZATION ---
-DB_FILE = "ark_enterprise.db"
+DB_FILE = "_enterprise.db"
 
 def get_db():
     conn = sqlite3.connect(DB_FILE)
@@ -116,7 +116,7 @@ def init_db():
         if "extended_meta_json" not in q_cols:
             conn.execute("ALTER TABLE quotations ADD COLUMN extended_meta_json TEXT DEFAULT '{}'")
 
-        admin_exists = conn.execute("SELECT 1 FROM users WHERE LOWER(email)='admin@arktechsolutions.net'").fetchone()
+        admin_exists = conn.execute("SELECT 1 FROM users WHERE LOWER(email)='admin@techsolutions.net'").fetchone()
         if not admin_exists:
             pwd_hash = hashlib.sha256("ArkAdmin2026!".encode()).hexdigest()
             conn.execute("INSERT INTO users (email, password_hash, role, is_verified, name, designation) VALUES (?, ?, ?, 1, 'System Administrator', 'Infrastructure Root')",
@@ -139,9 +139,9 @@ sandbox_defaults = {
     "sb_terms_and_cond": "1. Standard Vendor Warranty applies.\n2. Prices exclude deployment unless itemized below.",
     "sb_currency_selection": "USD",
     "sb_exchange_rate": 3250.0,
-    "sb_ps_desc": "ARK Implementation Support",
+    "sb_ps_desc": "Mingalar Tech Implementation Support",
     "sb_ps_price": 0.0,
-    "sb_ms_desc": "ARK Premium 24/7 Monitoring",
+    "sb_ms_desc": "Mingalar Tech Premium 24/7 Monitoring",
     "sb_ms_price": 0.0,
     "sb_ps_ms_currency": "USD",
     "sb_enable_commercial_tax": True,
@@ -213,7 +213,7 @@ def parse_uploaded_document(df_raw):
             try: price_val = float(re.sub(r'[^\d\.]', '', str(row[price_col])))
             except: pass
             
-        part_no = "ARK-PART" if is_sub_row else ""
+        part_no = "MGT-PART" if is_sub_row else ""
         for col in df_raw.columns:
             if col not in [desc_col, qty_col, price_col, "No"] and is_sub_row:
                 val = str(row[col]).strip()
@@ -260,7 +260,7 @@ def parse_pdf_document(uploaded_file):
                     except: pass
                 
                 words = line_str.split()
-                part_no = words[0] if len(words) > 0 and len(words[0]) < 18 else "ARK-PART"
+                part_no = words[0] if len(words) > 0 and len(words[0]) < 18 else "MGT-PART"
                 desc_val = " ".join(words[1:-2]) if len(words) > 3 else line_str
                 
                 if len(desc_val) > 5:
@@ -292,7 +292,7 @@ if "default_logo_base64" not in st.session_state: st.session_state.default_logo_
 # AUTHENTICATION HUB
 # ==========================================
 if not st.session_state.user:
-    st.subheader("🔒 ARK Premium Solutions Portal Authentication")
+    st.subheader("🔒 Mingalar Tech Portal Authentication")
     auth_tab1, auth_tab2 = st.tabs(["Sign In System", "Register New Profile"])
     
     with auth_tab1:
@@ -518,9 +518,9 @@ elif page_selection == "🏠 Dashboard Console":
                                 except:
                                     pass
                             
-                            st.session_state.sb_ps_desc = ext_meta.get("ps_desc", "ARK Implementation Support")
+                            st.session_state.sb_ps_desc = ext_meta.get("ps_desc", "Mingalar Tech Implementation Support")
                             st.session_state.sb_ps_price = float(ext_meta.get("ps_price", 0.0))
-                            st.session_state.sb_ms_desc = ext_meta.get("ms_desc", "ARK Premium 24/7 Monitoring")
+                            st.session_state.sb_ms_desc = ext_meta.get("ms_desc", "Mingalar Tech Premium 24/7 Monitoring")
                             st.session_state.sb_ms_price = float(ext_meta.get("ms_price", 0.0))
                             st.session_state.sb_ps_ms_currency = ext_meta.get("ps_ms_currency", "USD")
                             st.session_state.sb_enable_commercial_tax = bool(ext_meta.get("enable_commercial_tax", True))
@@ -590,7 +590,7 @@ elif page_selection == "➕ Build New Quotation Module":
     
     current_time_stamp = datetime.now()
     year_month_prefix = current_time_stamp.strftime("%Y%m")
-    quotation_auto_gen = f"ARK-QT-{year_month_prefix}-{random.randint(100000, 999999)}"
+    quotation_auto_gen = f"Mingalar-Tech-QT-{year_month_prefix}-{random.randint(100000, 999999)}"
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 💱 Currency Settings")
@@ -605,7 +605,7 @@ elif page_selection == "➕ Build New Quotation Module":
     sample_df = pd.DataFrame({
         "No": ["1", "1.1", "1.2", "2"],
         "Part Number": ["", "C9300-48TX-E", "STACK-M-50CM", ""],
-        "Description": ["Cisco Core Router Stack Frame", "Catalyst 9300 48-port Data Only", "Cisco Catalyst 9300 Stack Cable 50CM", "ARK Professional Services Division"],
+        "Description": ["Cisco Core Router Stack Frame", "Catalyst 9300 48-port Data Only", "Cisco Catalyst 9300 Stack Cable 50CM", "Mingalar Tech Professional Services Division"],
         "Qty": [0, 1, 1, 0],
         "Unit Price": [0.0, 4500.00, 250.00, 0.0]
     })
@@ -613,7 +613,7 @@ elif page_selection == "➕ Build New Quotation Module":
     st.sidebar.download_button(
         label="📥 Download Sample CSV Structure",
         data=csv_payload,
-        file_name="ark_sample_template.csv",
+        file_name="MGT_sample_template.csv",
         mime="text/csv"
     )
     
@@ -926,7 +926,7 @@ elif page_selection == "➕ Build New Quotation Module":
         if st.session_state.default_logo_base64 is not None:
             logo_html = f'<img src="{st.session_state.default_logo_base64}" style="max-height: 65px; max-width: 220px; object-fit: contain;">'
         else:
-            logo_html = '<h2 style="color:#00a8e8; margin:0; font-family:\'Helvetica Neue\',Arial; font-size: 18pt; font-weight: normal; letter-spacing: 0.5px;">ARK PREMIUM SOLUTION</h2>'
+            logo_html = '<h2 style="color:#D4A017; margin:0; font-family:\'Helvetica Neue\',Arial; font-size: 18pt; font-weight: normal; letter-spacing: 0.5px;">Mingalar Tech ICT Solutions Limited</h2>'
 
         max_main_no = max([int(float(item.get("parent_idx", 0))) for item in st.session_state.working_items if str(item.get("parent_idx", "")).isdigit()] + [1])
 
@@ -976,12 +976,12 @@ elif page_selection == "➕ Build New Quotation Module":
             <tr style="background-color: #f8fafc; font-weight: 600; border-top: 1px solid #e2e8f0;">
                 <td style="text-align: center; color: #1e293b; padding: 8px;">{current_service_index}</td>
                 <td colspan="5" style="padding-left: 10px; color: #1e293b; font-size: 8.5pt; padding: 8px;">
-                    ARK Professional Services
+                    Mingalar Tech Professional Services
                 </td>
             </tr>
             <tr style="background-color: #ffffff;">
                 <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}.1</td>
-                <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-ARK-PS</td>
+                <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-MGT-PS</td>
                 <td style="white-space: pre-line; padding-left: 10px; color: #334155; padding: 8px; font-style: italic;">{ps_desc}</td>
                 <td style="text-align: center; color: #334155; padding: 8px;">1</td>
                 <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{srv_symbol}{ps_price:,.2f}</td>
@@ -994,12 +994,12 @@ elif page_selection == "➕ Build New Quotation Module":
             <tr style="background-color: #f8fafc; font-weight: 600; border-top: 1px solid #e2e8f0;">
                 <td style="text-align: center; color: #1e293b; padding: 8px;">{current_service_index}</td>
                 <td colspan="5" style="padding-left: 10px; color: #1e293b; font-size: 8.5pt; padding: 8px;">
-                    ARK Maintenance Service
+                    Mingalar Tech Maintenance Service
                 </td>
             </tr>
             <tr style="background-color: #ffffff;">
                 <td style="text-align: center; color: #64748b; padding: 8px;">{current_service_index}.1</td>
-                <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-ARK-MS</td>
+                <td style="color: #334155; font-family: monospace; word-break: break-all; padding: 8px;">SRV-MGT-MS</td>
                 <td style="white-space: pre-line; padding-left: 10px; color: #334155; padding: 8px; font-style: italic;">{ms_desc}</td>
                 <td style="text-align: center; color: #334155; padding: 8px;">1</td>
                 <td style="text-align: right; color: #334155; white-space: nowrap; padding: 8px;">{srv_symbol}{ms_price:,.2f}</td>
@@ -1196,11 +1196,9 @@ elif page_selection == "➕ Build New Quotation Module":
             <div class="header-container">
                 <div class="header-logo">{logo_html}</div>
                 <div class="header-address">
-                    <div class="company-group-title">ARK Premium Solution Limited</div>
-                    <strong>ARK Corporate Office :</strong> 18th floor, Times City(office tower-2), Kamayut, Yangon, Myanmar.<br>
-                    <strong>ARK Headquarters Office :</strong> 91, Shwe Taung Kyar 1st Street, Golden Valley 1, Bahan, Yangon, Myanmar.<br>
-                    <strong>ARK Thailand Office :</strong> 1, Soi Ramkhamhaeng 118 Yaek 33-3, Saphan Sung 10240, Bangkok, Thailand.<br>
-                    <strong>website:</strong> www.arktechsolutions.net
+                    <div class="company-group-title">Mingalar Technologies ICT Solutions Limited</div>
+                    <strong>Head Office :</strong> 7th floor,Ayar Chantha Executive Condominium, Dagon Seikan, Yangon, Myanmar.<br>
+                    <strong>website:</strong> www.mingalartech.com.mm
                 </div>
             </div>
 
@@ -1288,13 +1286,13 @@ elif page_selection == "➕ Build New Quotation Module":
         </html>
         """
         
-        pdf_filename = f"ARK_Quotation_{quotation_auto_gen}.pdf"
+        pdf_filename = f"_Quotation_{quotation_auto_gen}.pdf"
         try:
             HTML(string=html_document).write_pdf(pdf_filename)
             with open(pdf_filename, "rb") as pdf_file:
                 pdf_payload = pdf_file.read()
                 
-            st.sidebar.markdown("---")
+            st.sidebar.mdown("---")
             st.sidebar.success("🎉 Enterprise compilation structural integrity cleared!")
             st.sidebar.download_button(
                 label="📥 Download Finished Quotation PDF Document",
