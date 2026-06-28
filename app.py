@@ -97,7 +97,7 @@ def init_db():
             )
         """)
         
-        # Database schema patching helpers
+   # Database schema patching helpers
         cursor = conn.cursor()
         cursor.execute("PRAGMA table_info(users)")
         u_cols = [c[1] for c in cursor.fetchall()]
@@ -116,12 +116,14 @@ def init_db():
         if "extended_meta_json" not in q_cols:
             conn.execute("ALTER TABLE quotations ADD COLUMN extended_meta_json TEXT DEFAULT '{}'")
 
-        admin_exists = conn.execute("SELECT 1 FROM users WHERE LOWER(email)='admin@techsolutions.net'").fetchone()
+        admin_exists = conn.execute("SELECT 1 FROM users WHERE LOWER(email)='admin@arktechsolutions.net'").fetchone()
         if not admin_exists:
             pwd_hash = hashlib.sha256("ArkAdmin2026!".encode()).hexdigest()
             conn.execute("INSERT INTO users (email, password_hash, role, is_verified, name, designation) VALUES (?, ?, ?, 1, 'System Administrator', 'Infrastructure Root')",
                          ("admin@arktechsolutions.net", pwd_hash, "Admin"))
         conn.commit()
+
+init_db()
 
 init_db()
 
