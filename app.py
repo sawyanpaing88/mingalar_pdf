@@ -950,8 +950,8 @@ elif page_selection == "➕ Build New Quotation Module":
                 total_p = (raw_base_unit * float(item.get("Qty") or 0)) * conversion_multiplier
                 
                 if total_p <= 0:
-                    display_total = "INC"
-                    display_unit = "INC"
+                    display_total = "FOC"
+                    display_unit = "FOC"
                 else:
                     display_total = f"{currency_symbol}{total_p:,.2f}"
                     display_unit = f"{currency_symbol}{unit_p:,.2f}"
@@ -1212,7 +1212,7 @@ elif page_selection == "➕ Build New Quotation Module":
                             <div class="card-title">Prepared For</div>
                             <strong style="font-size: 9.5pt; color: #0f172a; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{client_company}</strong>
                             Attn: {attn_person}<br>
-                            Email: {attn_email}<br>
+                            #Email: {attn_email}<br>
                             Phone: {attn_phone}
                         </div>
                     </td>
