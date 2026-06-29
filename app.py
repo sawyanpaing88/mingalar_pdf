@@ -1197,7 +1197,7 @@ elif page_selection == "➕ Build New Quotation Module":
                 <div class="header-logo">{logo_html}</div>
                 <div class="header-address">
                     <div class="company-group-title">Mingalar Technologies ICT Solutions Limited</div>
-                    <strong>Mingalar Corporate Office :</strong> 7th floor, Ayar Chantha Executive Condominium, Dagon Seikan, Yangon, Myanmar.<br>
+                    <strong>Mingalar Office :</strong> 7th floor, Ayar Chantha Executive Condominium, Dagon Seikan, Yangon, Myanmar.<br>
                 </div>
             </div>
 
