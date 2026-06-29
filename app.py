@@ -1154,7 +1154,7 @@ elif page_selection == "➕ Build New Quotation Module":
                 .clear {{ clear: both; height: 5px; }}
                 
                 .data-table {{ width: 100%; max-width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; clear: both; table-layout: auto; }}
-                .data-table th {{ background-color: #1e293b; color: white; font-weight: 500; text-transform: uppercase; font-size: 8pt; padding: 8px; text-align: left; letter-spacing: 0.3px; }}
+                .data-table th {{ background-color: #D4A017; color: white; font-weight: 500; text-transform: uppercase; font-size: 8pt; padding: 8px; text-align: left; letter-spacing: 0.3px; }}
                 .data-table td {{ font-size: 8.5pt; border-bottom: 1px solid #f1f5f9; }}
                 
                 .footer-terms {{ margin-top: 25px; font-size: 8pt; color: #475569; border-top: 1px solid #e2e8f0; padding-top: 10px; page-break-inside: avoid; clear: both; line-height: 1.4; }}
@@ -1210,7 +1210,7 @@ elif page_selection == "➕ Build New Quotation Module":
                     <td>
                         <div class="card-box">
                             <div class="card-title">Prepared For</div>
-                            <strong style="font-size: 9.5pt; color: #D4A017; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{client_company}</strong>
+                            <strong style="font-size: 9.5pt; color: #0f172a; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{client_company}</strong>
                             Attn: {attn_person}<br>
                             Email: {attn_email}<br>
                             Phone: {attn_phone}
