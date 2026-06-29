@@ -28,8 +28,8 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    :root { --main-color: #00a8e8; }
-    .stButton>button { background-color: #00a8e8 !important; color: white !important; font-weight: bold; }
+    :root { --main-color: #D4A017; }
+    .stButton>button { background-color: #D4A017 !important; color: white !important; font-weight: bold; }
     .reportview-container { background: #f4f7f6; }
 </style>
 """, unsafe_allow_html=True)
@@ -926,7 +926,7 @@ elif page_selection == "➕ Build New Quotation Module":
         if st.session_state.default_logo_base64 is not None:
             logo_html = f'<img src="{st.session_state.default_logo_base64}" style="max-height: 100px; max-width: 220px; object-fit: contain;">'
         else:
-            logo_html = '<h2 style="color:#00a8e8; margin:0; font-family:\'Helvetica Neue\',Arial; font-size: 18pt; font-weight: normal; letter-spacing: 0.5px;">MINGALAR TECHNOLOGIES ICT SOLUTIONS LIMITED</h2>'
+            logo_html = '<h2 style="color:#D4A017; margin:0; font-family:\'Helvetica Neue\',Arial; font-size: 18pt; font-weight: normal; letter-spacing: 0.5px;">MINGALAR TECHNOLOGIES ICT SOLUTIONS LIMITED</h2>'
 
         max_main_no = max([int(float(item.get("parent_idx", 0))) for item in st.session_state.working_items if str(item.get("parent_idx", "")).isdigit()] + [1])
 
@@ -1038,7 +1038,7 @@ elif page_selection == "➕ Build New Quotation Module":
                     </tr>
                     {f'<tr><td style="color: #475569; padding: 2px 0; padding-left: 10px;">Commercial Tax (CT):</td><td style="text-align: right; font-weight: 600; white-space: nowrap;">+MMK {mmk_comm_tax:,.2f}</td></tr>' if enable_commercial_tax else ''}
                     {f'<tr><td style="color: #475569; padding: 2px 0; padding-left: 10px;">Withholding Tax (WHT):</td><td style="text-align: right; font-weight: 600; white-space: nowrap;">+MMK {mmk_wht_tax:,.2f}</td></tr>' if enable_wht else ''}
-                    <tr class="grand-total-tr" style="background-color: #00a8e8; color: white; font-weight: bold;">
+                    <tr class="grand-total-tr" style="background-color: #D4A017; color: white; font-weight: bold;">
                         <td style="padding: 5px; padding-left: 10px;">Grand Total (Services):</td>
                         <td style="text-align: right; padding: 5px;">MMK {mmk_grand_total:,.2f}</td>
                     </tr>
@@ -1080,7 +1080,7 @@ elif page_selection == "➕ Build New Quotation Module":
                     </tr>
                     {discount_row_markup}
                     {tax_row_markup}
-                    <tr class="grand-total-tr" style="background-color: #00a8e8; color: white; font-weight: bold; font-size: 10pt;">
+                    <tr class="grand-total-tr" style="background-color: #D4A017; color: white; font-weight: bold; font-size: 10pt;">
                         <td style="padding: 8px;">Grand Total:</td>
                         <td style="text-align: right; white-space: nowrap; padding: 8px;">{currency_symbol}{calculated_grand_total:,.2f}</td>
                     </tr>
@@ -1141,7 +1141,7 @@ elif page_selection == "➕ Build New Quotation Module":
                     letter-spacing: 0.3px;
                     margin-bottom: 2px;
                 }}
-                .divider {{ border-bottom: 2px solid #00a8e8; margin-top: 5px; margin-bottom: 15px; }}
+                .divider {{ border-bottom: 2px solid #D4A017; margin-top: 5px; margin-bottom: 15px; }}
                 .doc-title {{ font-size: 18pt; font-weight: normal; color: #0f172a; margin: 0; text-align: left; }}
                 
                 .meta-table {{ width: 100%; margin-bottom: 15px; table-layout: fixed; border-collapse: collapse; }}
