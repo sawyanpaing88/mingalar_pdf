@@ -1276,7 +1276,7 @@ elif page_selection == "➕ Build New Quotation Module":
         <div style="margin-top: 6px; font-weight: bold; color: #0f172a; font-size: 9.5pt;">{current_user["name"] or "Authorized Signatory"}</div>
         <div style="color: #475569; font-size: 8.5pt; font-weight: 500; margin-top: 2px;">{current_user["designation"] or "Account Operations Manager"}</div>
         <div style="color: #64748b; font-size: 8pt; margin-top: 4px; line-height: 1.4;">
-            Email: {current_user["email"]}<br>
+           # Email: {current_user["email"]}<br>
             Phone: {current_user["phone"] or "N/A"}
         </div>
     </div>
