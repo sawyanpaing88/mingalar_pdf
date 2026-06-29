@@ -924,7 +924,7 @@ elif page_selection == "➕ Build New Quotation Module":
 
     if action_c2.button("🖨️ Compile Official Corporate PDF Engine Asset"):
         if st.session_state.default_logo_base64 is not None:
-            logo_html = f'<img src="{st.session_state.default_logo_base64}" style="max-height: 120px; max-width: 220px; object-fit: contain;">'
+            logo_html = f'<img src="{st.session_state.default_logo_base64}" style="max-height: 100px; max-width: 220px; object-fit: contain;">'
         else:
             logo_html = '<h2 style="color:#00a8e8; margin:0; font-family:\'Helvetica Neue\',Arial; font-size: 18pt; font-weight: normal; letter-spacing: 0.5px;">MINGALAR TECHNOLOGIES ICT SOLUTIONS LIMITED</h2>'
 
@@ -1198,7 +1198,6 @@ elif page_selection == "➕ Build New Quotation Module":
                 <div class="header-address">
                     <div class="company-group-title">Mingalar Technologies ICT Solutions Limited</div>
                     <strong>Mingalar Corporate Office :</strong> 7th floor, Ayar Chantha Executive Condominium, Dagon Seikan, Yangon, Myanmar.<br>
-                    <strong>website:</strong> www.mingalartech.com.mm
                 </div>
             </div>
 
@@ -1211,7 +1210,7 @@ elif page_selection == "➕ Build New Quotation Module":
                     <td>
                         <div class="card-box">
                             <div class="card-title">Prepared For</div>
-                            <strong style="font-size: 9.5pt; color: #0f172a; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{client_company}</strong>
+                            <strong style="font-size: 9.5pt; color: #D4A017; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{client_company}</strong>
                             Attn: {attn_person}<br>
                             Email: {attn_email}<br>
                             Phone: {attn_phone}
