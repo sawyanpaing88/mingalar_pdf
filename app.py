@@ -924,7 +924,7 @@ elif page_selection == "➕ Build New Quotation Module":
 
     if action_c2.button("🖨️ Compile Official Corporate PDF Engine Asset"):
         if st.session_state.default_logo_base64 is not None:
-            logo_html = f'<img src="{st.session_state.default_logo_base64}" style="max-height: 65px; max-width: 220px; object-fit: contain;">'
+            logo_html = f'<img src="{st.session_state.default_logo_base64}" style="max-height: 120px; max-width: 220px; object-fit: contain;">'
         else:
             logo_html = '<h2 style="color:#00a8e8; margin:0; font-family:\'Helvetica Neue\',Arial; font-size: 18pt; font-weight: normal; letter-spacing: 0.5px;">MINGALAR TECHNOLOGIES ICT SOLUTIONS LIMITED</h2>'
 
@@ -1136,7 +1136,7 @@ elif page_selection == "➕ Build New Quotation Module":
                 }}
                 .company-group-title {{
                     font-weight: bold;
-                    color: #00a8e8;
+                    color: #D4A017;
                     font-size: 11pt;
                     letter-spacing: 0.3px;
                     margin-bottom: 2px;
@@ -1197,10 +1197,8 @@ elif page_selection == "➕ Build New Quotation Module":
                 <div class="header-logo">{logo_html}</div>
                 <div class="header-address">
                     <div class="company-group-title">Mingalar Technologies ICT Solutions Limited</div>
-                    <strong>Mingalar Corporate Office :</strong> 18th floor, Times City(office tower-2), Kamayut, Yangon, Myanmar.<br>
-                    <strong>Mingalar Headquarters Office :</strong> 91, Shwe Taung Kyar 1st Street, Golden Valley 1, Bahan, Yangon, Myanmar.<br>
-                    <strong>Mingalar Thailand Office :</strong> 1, Soi Ramkhamhaeng 118 Yaek 33-3, Saphan Sung 10240, Bangkok, Thailand.<br>
-                    <strong>website:</strong> www.mingalar.net
+                    <strong>Mingalar Corporate Office :</strong> 7th floor, Ayar Chantha Executive Condominium, Dagon Seikan, Yangon, Myanmar.<br>
+                    <strong>website:</strong> www.mingalartech.com.mm
                 </div>
             </div>
 
